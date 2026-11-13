@@ -1,0 +1,46 @@
+{% extends "victim/base.html" %}
+{% block title %}账户总览{% endblock %}
+{% block content %}
+  <section class="page-heading">
+    <div><p class="eyebrow">Account Overview</p><h1>你好，{{ current_user.username }}</h1></div>
+    <span class="pill">本地测试账户</span>
+  </section>
+
+  <section class="metric-grid">
+    <article class="metric-card primary">
+      <span>可用余额</span>
+      <strong>¥ {{ "%.2f"|format(current_user.account.balance_cents / 100) }}</strong>
+    </article>
+    <article class="metric-card">
+      <span>当前邮箱</span>
+      <strong>{{ current_user.email }}</strong>
+    </article>
+    <article class="metric-card">
+      <span>有效应用授权</span>
+      <strong>{{ active_grants }}</strong>
+    </article>
+  </section>
+
+  <section class="action-grid">
+    <a class="action-card" href="{{ url_for('victim.transfer') }}"><strong>发起模拟转账</strong><span>创建可追踪的余额变化</span></a>
+    <a class="action-card" href="{{ url_for('victim.profile') }}"><strong>修改邮箱</strong><span>典型账户敏感操作</span></a>
+    <a class="action-card" href="{{ url_for('victim.authorizations') }}"><strong>管理应用授权</strong><span>授予或撤销第三方权限</span></a>
+    <a class="action-card danger" href="{{ url_for('victim.delete_data') }}"><strong>清理活动数据</strong><span>删除实验交易与授权</span></a>
+  </section>
+
+  <section class="table-card">
+    <div class="section-title"><h2>最近交易</h2><a href="{{ url_for('victim.transfer_history') }}">查看全部</a></div>
+    {% if recent_transfers %}
+      <table><thead><tr><th>方向</th><th>对方</th><th>金额</th><th>状态</th></tr></thead><tbody>
+        {% for item in recent_transfers %}
+          <tr>
+            {% if item.sender_id == current_user.id %}<td>转出</td><td>{{ item.recipient.username }}</td><td class="negative">- ¥ {{ "%.2f"|format(item.amount_cents / 100) }}</td>
+            {% else %}<td>转入</td><td>{{ item.sender.username }}</td><td class="positive">+ ¥ {{ "%.2f"|format(item.amount_cents / 100) }}</td>{% endif %}
+            <td>{{ item.status }}</td>
+          </tr>
+        {% endfor %}
+      </tbody></table>
+    {% else %}<p class="empty">暂无交易记录。</p>{% endif %}
+  </section>
+{% endblock %}
+

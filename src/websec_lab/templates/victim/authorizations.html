@@ -1,0 +1,25 @@
+{% extends "victim/base.html" %}
+{% block title %}应用授权{% endblock %}
+{% block content %}
+  <section class="two-column">
+    <article class="form-card">
+      <p class="eyebrow">Sensitive Action</p><h1>授予第三方权限</h1>
+      <form method="post">
+        {{ form.hidden_tag() }}
+        <label>{{ form.client_name.label }}{{ form.client_name() }}</label>
+        <label>{{ form.scope.label }}{{ form.scope() }}</label>
+        {{ form.submit(class_="button") }}
+      </form>
+    </article>
+    <article class="table-card">
+      <div class="section-title"><h2>授权记录</h2></div>
+      {% if grants %}<div class="grant-list">
+        {% for grant in grants %}<article class="grant-card">
+          <div><strong>{{ grant.client_name }}</strong><span>{{ grant.scope }}</span><small>{{ "有效" if grant.active else "已撤销" }}</small></div>
+          {% if grant.active %}<form method="post" action="{{ url_for('victim.revoke_authorization', grant_id=grant.id) }}">{{ revoke_form.hidden_tag() }}{{ revoke_form.submit(class_="button button-ghost") }}</form>{% endif %}
+        </article>{% endfor %}
+      </div>{% else %}<p class="empty">暂无第三方授权。</p>{% endif %}
+    </article>
+  </section>
+{% endblock %}
+

@@ -1,0 +1,204 @@
+# M6 静态策略分析器测试语料库
+#
+# 每个用例提供：
+#   url          目标地址（用于 self 判定）
+#   headers      多值响应头（CSP/XFO 会按逗号再拆分）
+#   set_cookies  可选，原始 Set-Cookie 列表
+#   ancestors    祖先链（最外层在前，直接父层在后）
+#   expected     决策（allowed / blocked_by）与触发的规则编号集合
+
+- name: no-defense-baseline
+  url: http://victim.test:5100/lab/quick-transfer
+  headers: {}
+  ancestors: ["http://attacker.test:5200"]
+  expected:
+    decision: allowed
+    blocked_by: []
+    rule_ids: [WS001]
+
+- name: xfo-deny-blocks-cross-origin
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    x-frame-options: [DENY]
+  ancestors: ["http://attacker.test:5200"]
+  expected:
+    decision: blocked
+    blocked_by: [xfo]
+    rule_ids: []
+
+- name: xfo-sameorigin-allows-same-origin-ancestor
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    x-frame-options: [SAMEORIGIN]
+  ancestors: ["http://victim.test:5100"]
+  expected:
+    decision: allowed
+    blocked_by: []
+    rule_ids: []
+
+- name: xfo-sameorigin-blocks-cross-origin
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    x-frame-options: [SAMEORIGIN]
+  ancestors: ["http://attacker.test:5200"]
+  expected:
+    decision: blocked
+    blocked_by: [xfo]
+    rule_ids: []
+
+- name: xfo-allow-from-is-obsolete
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    x-frame-options: ["ALLOW-FROM http://partner.test:5300"]
+  ancestors: ["http://attacker.test:5200"]
+  expected:
+    decision: allowed
+    blocked_by: []
+    rule_ids: [WS004, WS001]
+
+- name: xfo-invalid-value-ignored
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    x-frame-options: ["ALLOW-ALL"]
+  ancestors: ["http://attacker.test:5200"]
+  expected:
+    decision: allowed
+    blocked_by: []
+    rule_ids: [WS002, WS001]
+
+- name: xfo-duplicate-headers-ambiguous
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    x-frame-options: [SAMEORIGIN, SAMEORIGIN]
+  ancestors: ["http://attacker.test:5200"]
+  expected:
+    decision: blocked
+    blocked_by: [xfo]
+    rule_ids: [WS003]
+
+- name: csp-none-blocks-everything
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    content-security-policy: ["frame-ancestors 'none'"]
+  ancestors: ["http://partner.test:5300"]
+  expected:
+    decision: blocked
+    blocked_by: [csp]
+    rule_ids: []
+
+- name: csp-allowlist-allows-partner-blocks-attacker
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    content-security-policy: ["frame-ancestors 'self' http://partner.test:5300"]
+  ancestors: ["http://partner.test:5300"]
+  expected:
+    decision: allowed
+    blocked_by: []
+    rule_ids: []
+
+- name: csp-wildcard-allows-anyone
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    content-security-policy: ["frame-ancestors *"]
+  ancestors: ["http://attacker.test:5200"]
+  expected:
+    decision: allowed
+    blocked_by: []
+    rule_ids: [WS007]
+
+- name: csp-multiple-policies-intersect-to-none
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    content-security-policy:
+      - "frame-ancestors 'self' http://partner.test:5300"
+      - "frame-ancestors 'none'"
+  ancestors: ["http://partner.test:5300"]
+  expected:
+    decision: blocked
+    blocked_by: [csp]
+    rule_ids: [WS006]
+
+- name: csp-report-only-does-not-block
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    content-security-policy-report-only: ["frame-ancestors 'none'"]
+  ancestors: ["http://attacker.test:5200"]
+  expected:
+    decision: allowed
+    blocked_by: []
+    rule_ids: [WS008, WS001]
+
+- name: xfo-csp-conflict-detected
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    x-frame-options: [DENY]
+    content-security-policy: ["frame-ancestors http://attacker.test:5200"]
+  ancestors: ["http://attacker.test:5200"]
+  expected:
+    decision: allowed
+    blocked_by: []
+    rule_ids: [WS005]
+
+- name: xfo-csp-consistent-flagged-as-healthy
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    x-frame-options: [SAMEORIGIN]
+    content-security-policy: ["frame-ancestors 'self'"]
+  ancestors: ["http://victim.test:5100"]
+  expected:
+    decision: allowed
+    blocked_by: []
+    rule_ids: [WS012]
+
+- name: csp-none-mixed-with-sources-is-malformed
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    content-security-policy: ["frame-ancestors 'none' http://partner.test:5300"]
+  ancestors: ["http://partner.test:5300"]
+  expected:
+    decision: allowed
+    blocked_by: []
+    rule_ids: [WS011]
+
+- name: cookie-samesite-none-without-secure
+  url: http://victim.test:5100/lab/quick-transfer
+  headers: {}
+  set_cookies:
+    - "websec_victim_session=abc; HttpOnly; SameSite=None"
+  ancestors: ["http://attacker.test:5200"]
+  expected:
+    decision: allowed
+    blocked_by: []
+    rule_ids: [WS001, WS009, WS010]
+
+- name: cookie-hardened-no-cookie-findings
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    x-frame-options: [DENY]
+  set_cookies:
+    - "websec_victim_session=abc; HttpOnly; Secure; SameSite=Strict"
+  ancestors: ["http://attacker.test:5200"]
+  expected:
+    decision: blocked
+    blocked_by: [xfo]
+    rule_ids: []
+
+- name: multilevel-xfo-sameorigin-top-ancestor-differs
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    x-frame-options: [SAMEORIGIN]
+  ancestors: ["http://attacker.test:5200", "http://victim.test:5100"]
+  expected:
+    decision: blocked
+    blocked_by: [xfo]
+    rule_ids: []
+
+- name: multilevel-csp-every-ancestor-must-match
+  url: http://victim.test:5100/lab/quick-transfer
+  headers:
+    content-security-policy: ["frame-ancestors 'self' http://partner.test:5300"]
+  ancestors: ["http://partner.test:5300", "http://victim.test:5100"]
+  expected:
+    decision: allowed
+    blocked_by: []
+    rule_ids: []

@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>SameSite 会话观察</title></head>
+<body style="font-family:system-ui;padding:24px">
+  <h2>目标站会话观察</h2>
+  <p>此页面只报告收到的会话状态，不返回Cookie值。</p>
+  <pre id="session-observation">{{ observation | tojson(indent=2) }}</pre>
+</body></html>

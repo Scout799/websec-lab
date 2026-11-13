@@ -1,0 +1,229 @@
+{% extends "audit_base.html" %}
+{% block title %}审计控制台 · WebSec Clickjacking Lab{% endblock %}
+{% block content %}
+<main class="shell">
+  <p class="eyebrow">Auditor · M6 / M7</p>
+  <h1>审计控制台</h1>
+  <p class="purpose">
+    填目标、点运行：静态策略分析 + 真实浏览器动态验证 + 劫持点定位，
+    结果写成一份自包含 HTML 报告并直接打开。
+  </p>
+
+  {% if error %}<p class="audit-error">{{ error }}</p>{% endif %}
+  {% if last_run %}
+  <p class="audit-done">
+    审计已完成，运行编号 <code>{{ last_run }}</code>。
+    <a href="{{ url_for('audit_console.audit_report', run_id=last_run) }}">打开报告</a>
+  </p>
+  {% endif %}
+
+  <div class="audit-grid">
+  <form method="post" action="{{ url_for('audit_console.audit_run') }}" class="audit-form">
+    <label>
+      <span>目标 URL</span>
+      <input type="url" name="target" value="{{ default_target }}" required>
+    </label>
+    <label>
+      <span>祖先来源（嵌入方）</span>
+      <input type="text" name="ancestor" value="{{ default_ancestor }}">
+    </label>
+    <div class="audit-row">
+      <label>
+        <span>登录用户名</span>
+        <input type="text" name="username" value="alice" autocomplete="off">
+      </label>
+      <label>
+        <span>登录密码</span>
+        <input type="password" name="password" value="alice-lab" autocomplete="off">
+      </label>
+    </div>
+    <label class="audit-check">
+      <input type="checkbox" name="click" checked>
+      <span>包含坐标点击测试（需要受害者站点正在运行）</span>
+    </label>
+    <label>
+      <span>运行前切换 victim 防御档（默认保持当前：<code>{{ current_defense }}</code>）</span>
+      <select name="defense" class="audit-select">
+        {% for choice in defense_choices %}
+        <option value="{{ choice }}"{% if choice == "keep" %} selected{% endif %}>
+          {% if choice == "keep" %}保持当前档位{% else %}{{ choice }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit" class="audit-submit">运行审计</button>
+    <p class="audit-hint">审计器只接受本地目标（loopback 或 *.test），一次运行约 5–10 秒。</p>
+  </form>
+
+  <aside class="audit-live">
+    <h2>受害者实况 · 实时</h2>
+    <p class="live-sub">alice · 每 1.5 秒自动刷新，点位出现在这里 = 攻击真的改变了业务状态</p>
+    <p class="live-balance" id="live-balance">--</p>
+    <p class="live-meta" id="live-meta">加载中…</p>
+    <h3>最近交易</h3>
+    <ul class="live-list" id="live-list"></ul>
+    <h3>授权</h3>
+    <ul class="live-list" id="live-grants"></ul>
+    <p class="live-foot">
+      <span id="live-updated">--</span>
+      <a href="http://127.0.0.1:{{ victim_port }}/transfers" target="_blank" rel="noreferrer">打开受害者交易记录 ↗</a>
+    </p>
+  </aside>
+  </div>
+
+  {% if recent %}
+  <section class="audit-recent">
+    <h2>最近的报告</h2>
+    <table>
+      <tr><th>运行编号</th><th>目标</th><th>时间</th></tr>
+      {% for item in recent %}
+      <tr>
+        <td><a href="{{ url_for('audit_console.audit_report', run_id=item.run_id) }}"><code>{{ item.run_id }}</code></a></td>
+        <td class="muted">{{ item.target }}</td>
+        <td class="muted">{{ item.when }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </section>
+  {% endif %}
+
+  <nav>
+    <a href="/api/rules">规则库</a>
+    <a href="/healthz">Health</a>
+    <a href="/readyz">Readiness</a>
+  </nav>
+</main>
+
+<script>
+  (function () {
+    "use strict";
+    const balanceEl = document.getElementById("live-balance");
+    const metaEl = document.getElementById("live-meta");
+    const listEl = document.getElementById("live-list");
+    const grantsEl = document.getElementById("live-grants");
+    const updatedEl = document.getElementById("live-updated");
+    let lastId = null;
+
+    function yuan(cents) {
+      return "¥" + (cents / 100).toFixed(2);
+    }
+
+    function render(state) {
+      balanceEl.textContent = yuan(state.account.balance_cents);
+      metaEl.textContent =
+        state.transfers.length + " 笔交易 · " + state.grants.length + " 项授权";
+      listEl.innerHTML = "";
+      state.transfers
+        .slice(-6)
+        .reverse()
+        .forEach(function (item) {
+          const li = document.createElement("li");
+          const fresh = lastId !== null && item.id > lastId;
+          li.className = fresh ? "live-item fresh" : "live-item";
+          li.innerHTML =
+            '<span class="live-amount">' + yuan(item.amount_cents) + "</span>" +
+            '<span class="live-to">→ ' + item.recipient + "</span>" +
+            '<span class="live-note">' + (item.note || "") + "</span>";
+          listEl.appendChild(li);
+        });
+      if (!state.transfers.length) {
+        listEl.innerHTML = '<li class="live-item muted">暂无交易</li>';
+      }
+      if (state.transfers.length) {
+        lastId = state.transfers[state.transfers.length - 1].id;
+      }
+      grantsEl.innerHTML = "";
+      state.grants.slice(-4).reverse().forEach(function (grant) {
+        const li = document.createElement("li");
+        li.className = "live-item";
+        li.innerHTML =
+          '<span class="live-note">' + grant.client_name + "</span>" +
+          '<span class="live-to">' + grant.scope + "</span>";
+        grantsEl.appendChild(li);
+      });
+      if (!state.grants.length) {
+        grantsEl.innerHTML = '<li class="live-item muted">暂无授权</li>';
+      }
+      updatedEl.textContent = "更新于 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    }
+
+    async function poll() {
+      try {
+        const response = await fetch("/audit/state?username=alice", { cache: "no-store" });
+        if (!response.ok) throw new Error(String(response.status));
+        render(await response.json());
+      } catch (error) {
+        metaEl.textContent = "无法连接受害者（victim 是否在运行？）";
+        balanceEl.textContent = "--";
+      }
+    }
+
+    poll();
+    setInterval(poll, 1500);
+  })();
+</script>
+
+<style>
+  .shell { width: min(72rem, calc(100vw - 3rem)); }
+  .audit-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr); gap: 26px; align-items: start; }
+  @media (max-width: 980px) { .audit-grid { grid-template-columns: 1fr; } }
+  .audit-grid > * { min-width: 0; }
+  .audit-form { display: grid; gap: 14px; margin: 26px 0 8px; }
+  .audit-form label { display: grid; gap: 6px; font-size: 14px; }
+  .audit-form input[type="url"],
+  .audit-form input[type="text"],
+  .audit-form input[type="password"] {
+    padding: 10px 12px; border-radius: 8px; border: 1px solid #cfd8e6;
+    background: #fff; font-size: 14px; font-family: ui-monospace, Consolas, monospace;
+  }
+  .audit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .audit-check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .audit-select {
+    padding: 10px 12px; border-radius: 8px; border: 1px solid #cfd8e6;
+    background: #fff; font-size: 14px;
+  }
+  .audit-submit {
+    justify-self: start; padding: 11px 26px; border: 0; border-radius: 8px;
+    background: #245bd7; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  .audit-submit:hover { background: #1b46a8; }
+  .audit-hint { color: #68758b; font-size: 13px; margin: 0; }
+  .audit-error {
+    border: 1px solid #e2606b; background: #fdeef0; color: #b3261e;
+    border-radius: 8px; padding: 10px 14px; font-size: 14px;
+  }
+  .audit-recent { margin-top: 34px; }
+  .audit-recent h2 { font-size: 16px; margin: 0 0 10px; }
+  .audit-recent table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .audit-recent th, .audit-recent td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e6ecf4; }
+  .audit-done {
+    border: 1px solid #2f7d5b; background: #eefaf2; color: #1f6b4a;
+    border-radius: 8px; padding: 10px 14px; font-size: 14px;
+  }
+  .audit-live {
+    margin-top: 26px; padding: 18px 20px; border-radius: 14px;
+    border: 1px solid #dfe6f1; background: #fff;
+    box-shadow: 0 10px 26px rgba(16, 37, 77, 0.06);
+  }
+  .audit-live h2 { margin: 0 0 4px; font-size: 16px; }
+  .audit-live h3 { margin: 16px 0 6px; font-size: 13px; color: #55627a; letter-spacing: 0.04em; }
+  .live-sub { margin: 0 0 12px; color: #68758b; font-size: 12px; }
+  .live-balance { margin: 0; font-size: 30px; font-weight: 800; color: #10254d; }
+  .live-meta { margin: 4px 0 0; color: #68758b; font-size: 13px; }
+  .live-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .live-item {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 10px;
+    padding: 7px 10px; border-radius: 8px; background: #f6f8fc; font-size: 13px;
+  }
+  .live-item.fresh { background: #e8f8ef; box-shadow: inset 0 0 0 1px #2f7d5b; }
+  .live-item.muted { color: #8a95a8; display: block; }
+  .live-amount { color: #b3261e; font-weight: 700; }
+  .live-to { color: #44516a; }
+  .live-note { color: #68758b; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .live-foot {
+    display: flex; justify-content: space-between; gap: 10px;
+    margin: 14px 0 0; font-size: 12px; color: #68758b;
+  }
+  .audit-recent .muted { color: #68758b; }
+</style>
+{% endblock %}

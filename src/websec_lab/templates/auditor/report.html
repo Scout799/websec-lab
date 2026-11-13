@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WebSec 审计报告 · {{ report.run_id }}</title>
+    <style>
+      :root {
+        --bg: #f4f6f9; --card: #fff; --ink: #1d2b3a; --muted: #64748b;
+        --line: #e2e8f0; --brand: #16325c; --ok: #1c7a3d; --bad: #b3261e;
+        --warn: #9a5b00; --chip: #eef2f7;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--ink);
+             font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; }
+      .wrap { max-width: 960px; margin: 0 auto; padding: 28px 20px 60px; }
+      header.rpt { background: linear-gradient(135deg, var(--brand), #2f6fdb);
+                   color: #fff; border-radius: 14px; padding: 26px 30px; }
+      header.rpt h1 { margin: 0 0 6px; font-size: 22px; }
+      header.rpt .meta { font-size: 13px; opacity: .85; line-height: 1.8; }
+      .verdict { margin-top: 14px; display: inline-block; padding: 8px 16px;
+                 border-radius: 999px; font-weight: 700; font-size: 14px;
+                 background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.5); }
+      .verdict.vulnerable { background: #fdecec; color: var(--bad); border-color: var(--bad); }
+      .verdict.protected { background: #e8f7ee; color: var(--ok); border-color: var(--ok); }
+      .verdict.partial { background: #fdf6e7; color: var(--warn); border-color: var(--warn); }
+      .verdict.embeddable { background: #fdf6e7; color: var(--warn); }
+      .verdict.inconclusive { background: var(--chip); color: var(--muted); border-color: var(--line); }
+
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
+      @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+      .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+              padding: 14px 16px; }
+      .stat .k { font-size: 12px; color: var(--muted); }
+      .stat .v { font-size: 20px; font-weight: 800; margin-top: 4px; }
+      .stat .v.ok { color: var(--ok); } .stat .v.bad { color: var(--bad); }
+      .stat .v.warn { color: var(--warn); }
+
+      section.card { background: var(--card); border: 1px solid var(--line);
+                     border-radius: 12px; padding: 20px 22px; margin-top: 16px; }
+      section.card > h2 { margin: 0 0 12px; font-size: 16px; color: var(--brand); }
+
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+      th { color: var(--muted); font-weight: 600; }
+      .sev { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; }
+      .sev.high { background: #fdecec; color: var(--bad); }
+      .sev.medium { background: #fdf6e7; color: var(--warn); }
+      .sev.low { background: var(--chip); color: var(--muted); }
+      .sev.info { background: var(--chip); color: var(--brand); }
+
+      .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      @media (max-width: 760px) { .shots { grid-template-columns: 1fr; } }
+      figure { margin: 0; }
+      figure img { width: 100%; border: 1px solid var(--line); border-radius: 8px; }
+      figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+      pre { background: #0f172a; color: #dbe7f3; padding: 14px; border-radius: 8px;
+            font-size: 12px; overflow-x: auto; max-height: 260px; overflow-y: auto; }
+      .muted { color: var(--muted); font-size: 13px; }
+      footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 24px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="rpt">
+        <h1>WebSec 点击劫持审计报告</h1>
+        <p class="meta">
+          目标：<code>{{ report.target_url }}</code><br>
+          运行编号 {{ report.run_id }} · {{ report.created_at[:19] }} UTC ·
+          静态风险 {{ risk.get("score", "-") }}（{{ risk.get("grade", "-") }}）
+        </p>
+        <span class="verdict {{ overall.get('verdict', 'inconclusive') }}">
+          {{ overall.get('label', '未判定') }}
+        </span>
+      </header>
+
+      <div class="grid">
+        <div class="stat">
+          <div class="k">静态判定（响应头）</div>
+          <div class="v {{ 'bad' if consistency.get('static_framing') == 'allowed' else 'ok' if consistency.get('static_framing') == 'blocked' else '' }}">
+            {{ consistency.get('static_framing') or '—' }}</div>
+        </div>
+        <div class="stat">
+          <div class="k">动态判定（真实浏览器）</div>
+          <div class="v {{ 'bad' if consistency.get('dynamic_framing') == 'allowed' else 'ok' if consistency.get('dynamic_framing') == 'blocked' else '' }}">
+            {{ consistency.get('dynamic_framing') or '—' }}</div>
+        </div>
+        <div class="stat">
+          <div class="k">诱导点击触发敏感操作</div>
+          {% set triggered = (dynamic.get('clickjacking') or {}).get('sensitive_action_triggered') %}
+          <div class="v {{ 'bad' if triggered else 'ok' if triggered is sameas false else '' }}">
+            {% if triggered %}是 ⚠️{% elif triggered is sameas false %}否{% else %}未执行{% endif %}</div>
+        </div>
+      </div>
+
+      <section class="card">
+        <h2>静态 / 动态一致性</h2>
+        <table>
+          <tr><th>静态嵌入判定</th><th>动态嵌入判定</th><th>一致</th><th>结论</th></tr>
+          <tr>
+            <td>{{ consistency.get('static_framing') or '—' }}</td>
+            <td>{{ consistency.get('dynamic_framing') or '—' }}</td>
+            <td>{% if consistency.get('agree') is none %}—{% elif consistency.get('agree') %}✅{% else %}❌{% endif %}</td>
+            <td class="muted">{{ consistency.get('note') }}</td>
+          </tr>
+        </table>
+        <p class="muted">请求的祖先链：{{ consistency.get('requested_ancestors', []) }}<br>
+          实际测试祖先链：{{ consistency.get('observed_ancestors', []) }}<br>
+          对照响应来源：{{ consistency.get('response_basis', 'unavailable') }}<br>
+          结论范围：{{ overall.get('scope', '') }}</p>
+      </section>
+
+      {% if dynamic.get('errors') %}
+      <section class="card">
+        <h2>动态审计错误</h2>
+        <ul>{% for error in dynamic.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+      </section>
+      {% endif %}
+
+      {% if findings %}
+      <section class="card">
+        <h2>风险发现（{{ findings|length }} 条）</h2>
+        <table>
+          <tr><th>规则</th><th>等级</th><th>说明</th><th>证据</th><th>修复建议</th></tr>
+          {% for finding in findings %}
+          <tr>
+            <td><b>{{ finding.rule_id }}</b></td>
+            <td><span class="sev {{ finding.severity }}">{{ finding.severity }}</span></td>
+            <td>{{ finding.title }}</td>
+            <td class="muted">{{ finding.evidence }}</td>
+            <td class="muted">{{ finding.remediation }}</td>
+          </tr>
+          {% endfor %}
+        </table>
+      </section>
+      {% endif %}
+
+      {% if matrix %}
+      <section class="card">
+        <h2>来源权限矩阵（静态推导）</h2>
+        <table>
+          <tr><th>来源</th><th>允许嵌入</th><th>阻断机制</th></tr>
+          {% for row in matrix %}
+          <tr>
+            <td><code>{{ row.origin }}</code></td>
+            <td>{% if row.allowed %}✅{% else %}❌{% endif %}</td>
+            <td class="muted">{{ row.blocked_by | join(', ') or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </table>
+      </section>
+      {% endif %}
+
+      {% if hijack_points %}
+      <section class="card">
+        <h2>劫持点定位（页面上可被点击劫持的具体位置）</h2>
+        <p class="muted">
+          在真实浏览器中打开目标页，枚举可交互元素并给出选择器、坐标与业务风险。
+          当静态与动态判定均为“可嵌入”时，下列元素即为攻击落点候选。
+        </p>
+        <table>
+          <tr><th>#</th><th>元素</th><th>文本</th><th>坐标 / 尺寸</th><th>业务风险</th></tr>
+          {% for point in hijack_points %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td><code>{{ point.selector }}</code></td>
+            <td>{{ point.text }}</td>
+            <td class="muted">({{ point.x }}, {{ point.y }}) · {{ point.width }}×{{ point.height }}</td>
+            <td>
+              {% if point.risk == 'high' %}🔴 高{% elif point.risk == 'medium' %}🟠 中{% else %}⚪ 低{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+        {% if screenshots.get('hijack_points') %}
+        <figure>
+          <img src="{{ screenshots.hijack_points }}" alt="劫持点高亮截图">
+          <figcaption>编号与上表一致：红框标出的是可被诱导点击的元素位置</figcaption>
+        </figure>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      {% if screenshots.get('clickjacking_before') or screenshots.get('framing_probe') %}
+      <section class="card">
+        <h2>动态验证截图证据</h2>
+        <div class="shots">
+          {% if screenshots.get('framing_probe') %}
+          <figure>
+            <img src="{{ screenshots.framing_probe }}" alt="嵌入探针截图">
+            <figcaption>嵌入探针：目标在第三方页面 iframe 中的渲染情况</figcaption>
+          </figure>
+          {% endif %}
+          {% if screenshots.get('clickjacking_before') %}
+          <figure>
+            <img src="{{ screenshots.clickjacking_before }}" alt="攻击前截图">
+            <figcaption>诱导点击前：透明 iframe 覆盖在诱导按钮上</figcaption>
+          </figure>
+          {% endif %}
+          {% if screenshots.get('clickjacking_after') %}
+          <figure>
+            <img src="{{ screenshots.clickjacking_after }}" alt="攻击后截图">
+            <figcaption>诱导点击后：截图与服务器业务状态共同作为操作结果的证据</figcaption>
+          </figure>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+
+      {% if console_tail %}
+      <section class="card">
+        <h2>浏览器控制台证据（末尾 {{ console_tail|length }} 条）</h2>
+        <pre>{% for entry in console_tail %}[{{ entry.type }}] {{ entry.text }}
+{% endfor %}</pre>
+      </section>
+      {% endif %}
+
+      {% if report.evidence %}
+      <section class="card">
+        <h2>证据清单</h2>
+        <ul class="muted" style="margin:0;padding-left:18px;line-height:1.9">
+          {% for name, path in report.evidence.items() %}
+          <li><code>{{ name }}</code> → {{ path }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      {% if report.signals and report.signals.get('analysis') %}
+      {% set signal = report.signals['analysis'] %}
+      <section class="card" id="signal-analysis">
+        <h2>双通道观察</h2>
+        <table><tr><th>CSP报告</th><th>交互启发式</th><th>联合观察</th><th>风险</th></tr>
+        <tr><td>{{ signal.csp_detected }}</td><td>{{ signal.interaction_detected }}</td>
+          <td>{{ signal.fused_detected }}</td><td>{{ signal.risk }}</td></tr></table>
+        <p>事件数 {{ signal.event_count }}；可疑点击 {{ signal.suspicious_click_count }}。</p>
+        <p class="muted">信号用于定位可疑交互；敏感操作是否执行以独立业务状态为准。</p>
+      </section>
+      {% endif %}
+      <footer>WebSec Clickjacking Lab · 本报告由本地授权实验环境自动生成</footer>
+    </div>
+  </body>
+</html>

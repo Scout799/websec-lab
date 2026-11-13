@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>SameSite iframe 实验</title></head>
+<body style="font-family:system-ui;max-width:1000px;margin:32px auto">
+  <h1>SameSite 跨站 / 同站 iframe 实验</h1>
+  <p>先在<a href="{{ victim_origin }}/login" target="_blank">目标站登录</a>，再查看iframe里的会话观察。</p>
+  <p>attacker.test为跨站；same.victim.test与victim.test同站但不同源。</p>
+  <iframe id="session-frame" src="{{ victim_origin }}/cookie-lab/session"
+          title="目标站会话状态" style="width:100%;height:420px;border:1px solid #aaa"></iframe>
+  <p><a href="/scenarios/overlay/run?opacity=0.01">进入透明覆盖攻击演示</a></p>
+  <p><a id="top-level-probe" href="{{ victim_origin }}/cookie-lab/session">顶层GET导航对照：查看目标站会话</a></p>
+</body></html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>快捷转账确认 · Victim Lab</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/victim.css') }}">
+    {% if config['DEFENSE'].frame_busting == 'hide' %}
+    <style>html { display: none; }</style>
+    <script>
+      (function () {
+        if (window.top === window.self) {
+          document.documentElement.style.display = "block";
+        }
+      })();
+    </script>
+    {% elif config['DEFENSE'].frame_busting == 'navigate' %}
+    <script>
+      (function () {
+        if (window.top !== window.self) {
+          try { window.top.location = window.self.location; } catch (error) { /* keep silent */ }
+        }
+      })();
+    </script>
+    {% endif %}
+    <style>
+      /* The actionable button of whichever stage is rendered must sit exactly
+         at the viewport center: the attacker scenarios align the embedded
+         frame's center with their decoy button, and the automated checks rely
+         on this contract. */
+      html, body { height: 100%; margin: 0; }
+      body {
+        position: relative;
+        display: flex; align-items: center; justify-content: center;
+        background: #f4f6f9;
+      }
+      .quick-header {
+        position: absolute; top: 16px; left: 0; right: 0;
+        text-align: center; color: #5a6b82; font-size: 13px; line-height: 1.7;
+      }
+      .quick-header .quick-amount { font-size: 24px; font-weight: 700; color: #16325c; }
+      .quick-card {
+        width: 300px; padding: 18px; text-align: center;
+        background: #fff; border: 1px solid #d7dce3; border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(15, 35, 65, 0.08);
+      }
+      .quick-card .button { width: 100%; padding: 14px 0; font-size: 16px; margin: 0; }
+      .quick-done { font-size: 15px; color: #1c7a3d; font-weight: 600; padding: 12px 0; }
+      .quick-balance { color: #5a6b82; font-size: 13px; }
+      .quick-error { color: #b3261e; font-size: 13px; margin: 0 0 12px; }
+      .quick-stage-hint { font-size: 12px; color: #98a5b6; margin: 0 0 10px; }
+    </style>
+  </head>
+  <body>
+    <div class="quick-header">
+      <div class="quick-amount">{{ amount_display }}</div>
+      <div>收款账户：{{ recipient }}</div>
+    </div>
+    <main class="quick-card" data-quick-page="transfer"
+          data-stage="{{ 'details' if show_details else 'confirm' }}">
+      {% with messages = get_flashed_messages() %}
+        {% for message in messages %}
+          <p class="quick-error">{{ message }}</p>
+        {% endfor %}
+      {% endwith %}
+      {% if completed %}
+        <p class="quick-done">转账已完成 #{{ completed.id }}</p>
+        <p class="quick-balance">当前余额 {{ balance_display }}</p>
+      {% elif show_details %}
+        <p class="quick-stage-hint">第 1 步 · 转账详情</p>
+        <a class="button button-primary"
+           href="{{ url_for('victim_lab.quick_transfer') }}?stage=2&recipient={{ recipient }}&amount_cents={{ amount_cents }}&note={{ ledger_note | urlencode }}">进入确认</a>
+      {% else %}
+        <form method="post"
+              action="{{ url_for('victim_lab.quick_transfer') }}?recipient={{ recipient }}&amount_cents={{ amount_cents }}&note={{ ledger_note | urlencode }}">
+          {{ form.hidden_tag() }}
+          {% if confirm_token %}
+          <input type="hidden" name="confirm_token" value="{{ confirm_token }}">
+          {% endif %}
+          {{ form.submit(class_="button button-primary") }}
+        </form>
+      {% endif %}
+    </main>
+  </body>
+</html>

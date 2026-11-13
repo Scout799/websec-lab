@@ -1,0 +1,7 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>领取奖励</title>
+<style>html,body{height:100%;margin:0}body{display:flex;align-items:center;justify-content:center;font:20px system-ui;background:#eff5ff}button{width:300px;padding:16px;border:0;border-radius:10px;background:#2869d8;color:white;font:20px system-ui}p{position:absolute;top:15%;text-align:center}</style>
+</head><body><p>双击按钮领取演示奖励</p><button id="window-decoy">领取奖励</button>
+<script>document.querySelector('button').addEventListener('mousedown', () => {
+  try { window.opener?.focusTarget(); } catch (error) { console.debug('Target handle unavailable'); }
+  window.close();
+}, {once:true});</script></body></html>

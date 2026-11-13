@@ -1,0 +1,16 @@
+services:
+  lab:
+    build: .
+    init: true
+    ports:
+      - "127.0.0.1:8443:8443"
+    environment:
+      WEBSEC_DEFENSE_PROFILE: ${WEBSEC_DEFENSE_PROFILE:-https-partner-allowlist}
+    shm_size: 1gb
+    volumes:
+      - lab-artifacts:/app/artifacts
+      - lab-runtime:/app/.websec-local
+    restart: "no"
+volumes:
+  lab-runtime:
+  lab-artifacts:

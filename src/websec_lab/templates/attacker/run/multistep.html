@@ -1,0 +1,121 @@
+{% extends "attacker/base.html" %}
+{% block title %}{{ scenario.seq }} {{ scenario.title }}{% endblock %}
+{% block content %}
+{% include "attacker/run/_run_header.html" %}
+
+<div class="attack-stage" id="stage">
+  <div class="decoy-card">
+    <h2>双十一双礼盒连开活动</h2>
+    <p>依次完成两步即可领取全部奖励，中途退出将失去资格。</p>
+    <p class="decoy-step-hint" id="decoy-hint">第 1 步 / 共 2 步</p>
+    <button type="button" class="decoy-button" id="decoy-button">{{ params.decoy_step_labels[0] }}</button>
+  </div>
+  {% set effective_opacity = 0.35 if (params.debug and params.opacity < 0.35) else params.opacity %}
+  <iframe id="victim-frame"
+          class="{{ 'debug-outline' if params.debug else '' }}"
+          title="attack target"
+          src="{{ params.victim_url(path='/lab/quick-grant') }}"
+          style="width: {{ params.iframe_width }}px; height: {{ params.iframe_height }}px; opacity: {{ effective_opacity }};"></iframe>
+</div>
+
+<script>
+  const RUN_ID = {{ run.run_id | tojson }};
+  const REPORT_TOKEN = {{ report_token | tojson }};
+  const PARAMS = {{ params.as_dict() | tojson }};
+  const STEPS = [
+    {
+      label: {{ params.decoy_step_labels[0] | tojson }},
+      url: {{ params.victim_url(path='/lab/quick-grant') | tojson }}
+    },
+    {
+      label: {{ params.decoy_step_labels[1] | tojson }},
+      url: {{ params.victim_url(path='/lab/quick-transfer') | tojson }}
+    }
+  ];
+</script>
+<script src="{{ url_for('static', filename='js/attack-report.js') }}"></script>
+<script>
+  (function () {
+    "use strict";
+    const stage = document.getElementById("stage");
+    const frame = document.getElementById("victim-frame");
+    const decoy = document.getElementById("decoy-button");
+    const hint = document.getElementById("decoy-hint");
+    const statusLine = document.getElementById("run-status");
+
+    let stepIndex = 0;
+    let loadsForCurrentSrc = 0;
+
+    function alignFrame() {
+      const stageRect = stage.getBoundingClientRect();
+      const decoyRect = decoy.getBoundingClientRect();
+      const targetCx = decoyRect.left + decoyRect.width / 2 - stageRect.left + PARAMS.offset_x;
+      const targetCy = decoyRect.top + decoyRect.height / 2 - stageRect.top + PARAMS.offset_y;
+      frame.style.left = Math.round(targetCx - PARAMS.iframe_width / 2) + "px";
+      frame.style.top = Math.round(targetCy - PARAMS.iframe_height / 2) + "px";
+    }
+
+    function applyStep(index) {
+      loadsForCurrentSrc = 0;
+      stepIndex = index;
+      const step = STEPS[index];
+      decoy.textContent = step.label;
+      hint.textContent = "第 " + (index + 1) + " 步 / 共 " + STEPS.length + " 步";
+      frame.src = step.url;
+      alignFrame();
+    }
+
+    frame.addEventListener("load", function () {
+      loadsForCurrentSrc += 1;
+      AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, {
+        type: "iframe_load",
+        step: stepIndex + 1,
+        sequence: loadsForCurrentSrc
+      });
+      if (loadsForCurrentSrc === 1) {
+        AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, {
+          type: "step_ready",
+          step: stepIndex + 1
+        });
+        return;
+      }
+      AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, {
+        type: "victim_action_reload",
+        step: stepIndex + 1
+      });
+      if (stepIndex + 1 < STEPS.length) {
+        const next = stepIndex + 1;
+        AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, { type: "step_change", to_step: next + 1 });
+        applyStep(next);
+        statusLine.textContent = "第 " + stepIndex + " 步动作已触发，iframe 已切换并对齐到下一个目标。";
+      } else {
+        AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, {
+          type: "run_complete",
+          outcome: "likely_success",
+          steps_completed: STEPS.length
+        });
+        statusLine.textContent =
+          "全部诱导步骤完成：授权与转账两个敏感动作很可能均已被触发，请用 victim 测试 API 核实业务状态变化。";
+      }
+    });
+
+    window.addEventListener("DOMContentLoaded", function () {
+      alignFrame();
+      AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, { type: "page_ready", steps: STEPS.length });
+      statusLine.textContent = "状态机就绪：第 1 步诱导等待点击。";
+    });
+    window.addEventListener("resize", function () {
+      alignFrame();
+    });
+
+// 布局稳定前按钮位置可能变化（字体渲染/内容加载/滚动条出现），
+// 在所有布局变化点重复对齐，幂等且开销极低。
+window.addEventListener("load", alignFrame);
+window.addEventListener("scroll", alignFrame, { passive: true });
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(function () { alignFrame(); });
+}
+[300, 800, 1500].forEach(function (ms) { setTimeout(alignFrame, ms); });
+  })();
+</script>
+{% endblock %}

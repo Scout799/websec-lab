@@ -1,0 +1,37 @@
+# M9 实验矩阵规格
+#
+# attack 实验：为每个 profile 起独立 victim，执行 M8 合并审计
+# （静态分析 + 真实浏览器透明覆盖点击 + 业务状态核对）。
+# legit 实验：partner 站点嵌入 victim 组件的兼容性检查
+# （csp-partner-allowlist 应通过，xfo-deny 应被阻断以展示兼容性代价）。
+
+target_path: /lab/quick-transfer
+scenarios: [overlay]
+viewports: [desktop]
+repeats: 1
+include_legit: true
+
+profiles:
+  - none
+  - xfo-deny
+  - xfo-sameorigin
+  - csp-none
+  - csp-self
+  - csp-partner-allowlist
+  - xfo-csp-consistent
+  - xfo-csp-conflict
+  - broken-invalid-xfo
+  - broken-duplicate-xfo
+  - broken-wide-csp
+  - broken-duplicate-csp
+  - csp-report-only
+  - confirm-reconfirm
+  - confirm-token
+  - business-hardened
+  - frame-busting
+  - frame-busting-hidden
+
+notes:
+  - 每组实验使用独立 victim 实例与全新数据库，实验间无状态泄漏
+  - 攻击判定以 victim 测试 API 的业务状态变化为准（与 M7 动态审计同源）
+  - 建议正式数据 repeats=3 以上；本默认规格为快速验证配置

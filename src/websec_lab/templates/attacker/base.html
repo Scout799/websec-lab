@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Attacker Lab{% endblock %} · WebSec Lab</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/attacker.css') }}">
+  </head>
+  <body class="attacker-shell">
+    <header class="attacker-header">
+      <a class="brand" href="{{ url_for('attacker.index') }}">
+        <span class="brand-mark">AT</span>
+        <span>Attacker Lab · 点击劫持场景库</span>
+      </a>
+      <nav aria-label="场景导航">
+        <a href="{{ url_for('attacker.index') }}">场景列表</a>
+        <a href="{{ url_for('demo.index') }}">分屏演示</a>
+        <a href="{{ url_for('attacker.index') }}#runs">运行记录</a>
+        <span>仅限本地授权实验</span>
+      </nav>
+    </header>
+    <main class="attacker-main">
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="attacker-footer">
+      <span>WebSec Local Lab · 攻击页面仅在 local_only 实验环境提供服务</span>
+      <span>所有目标均为本地虚构业务，不包含真实用户数据</span>
+    </footer>
+  </body>
+</html>

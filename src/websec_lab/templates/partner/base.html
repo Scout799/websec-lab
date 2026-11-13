@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}合作方服务{% endblock %} · WebSec Lab</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/partner.css') }}">
+  </head>
+  <body>
+    <header class="partner-header">
+      <a class="brand" href="{{ url_for('home') }}">
+        <span class="brand-mark">协</span>
+        <span class="brand-text">惠生活服务<small>WebSec 合法嵌入方</small></span>
+      </a>
+      <nav aria-label="主导航">
+        <a href="{{ url_for('home') }}">首页</a>
+        <a href="{{ url_for('wallet') }}">我的钱包</a>
+      </nav>
+    </header>
+    <main class="partner-main">
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="partner-footer">
+      <span>惠生活服务 · 经用户授权嵌入恒信银行提供的组件</span>
+      <span>仅限本地授权实验</span>
+    </footer>
+  </body>
+</html>

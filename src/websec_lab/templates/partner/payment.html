@@ -1,0 +1,8 @@
+{% extends "partner/base.html" %}
+{% block title %}授权支付确认{% endblock %}
+{% block content %}
+<h1>确认向 bob 支付 ¥1.23</h1>
+<p>下方是银行提供的真实支付确认控件。本页明确告知收款人和金额，点击表示执行这笔模拟支付。</p>
+<iframe id="payment-component" title="银行模拟支付确认" style="width:400px;height:420px;border:1px solid #aaa"
+        src="{{ victim_origin }}/lab/quick-transfer?recipient=bob&amp;amount_cents=123&amp;lab_run={{ lab_run }}"></iframe>
+{% endblock %}

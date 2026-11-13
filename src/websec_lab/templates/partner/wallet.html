@@ -1,0 +1,46 @@
+{% extends "partner/base.html" %}
+{% block title %}我的钱包{% endblock %}
+{% block content %}
+<section class="wallet-layout">
+  <div class="wallet-side">
+    <h1>我的钱包</h1>
+    <p>
+      下方的账户概览组件由<b>恒信银行</b>提供并嵌入本页。它是银行信任本站来源的合法组件：
+    </p>
+    <ul>
+      <li>银行防御为 <code>csp-partner-allowlist</code> 时：组件正常加载 ✅</li>
+      <li>银行为 <code>xfo-deny</code> 等全拒策略时：组件空白（兼容性受损）❌</li>
+      <li>攻击者把本页再嵌入自己的页面：祖先链含未授权来源，组件被拒 🔒</li>
+    </ul>
+    <p class="muted">组件地址：<code>{{ victim_origin }}/embed/profile-card</code></p>
+  </div>
+  <div class="embed-frame-card">
+    <div class="embed-frame-head">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="embed-url">恒信银行 · 账户概览</span>
+    </div>
+    <iframe id="bank-component"
+            title="恒信银行账户概览组件"
+            src="{{ victim_origin }}/embed/profile-card"></iframe>
+    <p class="embed-status" id="embed-status">组件加载中…</p>
+  </div>
+</section>
+
+<script>
+  (function () {
+    "use strict";
+    var frame = document.getElementById("bank-component");
+    var status = document.getElementById("embed-status");
+    var settled = false;
+    frame.addEventListener("load", function () {
+      if (settled) { return; }
+      settled = true;
+      // 跨域无法读取内容；这里只报告导航完成，真正的渲染判定由审计器完成。
+      status.textContent = "iframe 导航已完成（是否被策略拒绝见审计结论）";
+    });
+    setTimeout(function () {
+      if (!settled) { status.textContent = "iframe 加载超时"; }
+    }, 6000);
+  })();
+</script>
+{% endblock %}

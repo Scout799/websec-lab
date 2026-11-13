@@ -1,0 +1,88 @@
+{% extends "attacker/base.html" %}
+{% block title %}{{ scenario.seq }} {{ scenario.title }}{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1><span class="scenario-seq">{{ scenario.seq }}</span> {{ scenario.title }}</h1>
+  <p class="muted">{{ scenario.summary }}</p>
+</section>
+
+<section class="panel">
+  <h2>运行参数</h2>
+  <p class="muted">
+    参数通过查询字符串传入运行页，全部参数都会被服务端校验并钳制到安全范围。
+    目标 origin 只能从配置声明的本地 victim 来源中选择，目标路径限定在本场景白名单内。
+  </p>
+  <form class="launch-form" method="get" action="{{ url_for('attacker.scenario_run', scenario_id=scenario.scenario_id) }}">
+    <label>目标 origin
+      <select name="origin">
+        {% for origin in origins %}
+          <option value="{{ origin }}">{{ origin }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>目标路径
+      <select name="path">
+        {% for path in scenario.victim_paths %}
+          <option value="{{ path }}" {% if path == preview.victim_path %}selected{% endif %}>{{ path }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>iframe 透明度（0～1）
+      <input type="number" name="opacity" min="0" max="1" step="0.01" value="{{ preview.opacity }}">
+    </label>
+    <label>iframe 宽度（px）
+      <input type="number" name="iframe_w" min="200" max="1600" value="{{ preview.iframe_width }}">
+    </label>
+    <label>iframe 高度（px）
+      <input type="number" name="iframe_h" min="150" max="1200" value="{{ preview.iframe_height }}">
+    </label>
+    <label>水平微调 offset_x（px）
+      <input type="number" name="offset_x" min="-2000" max="2000" value="0">
+    </label>
+    <label>垂直微调 offset_y（px）
+      <input type="number" name="offset_y" min="-2000" max="2000" value="0">
+    </label>
+    {% if scenario.scenario_id == 'clip' %}
+      <label>裁剪窗口宽度（px）
+        <input type="number" name="window_w" min="60" max="800" value="{{ preview.window_width }}">
+      </label>
+      <label>裁剪窗口高度（px）
+        <input type="number" name="window_h" min="40" max="600" value="{{ preview.window_height }}">
+      </label>
+    {% endif %}
+    {% if scenario.scenario_id != 'probe' %}
+      <label>诱导按钮文案
+        <input type="text" name="decoy" maxlength="60" value="{{ preview.decoy_text }}">
+      </label>
+    {% endif %}
+    {% if scenario.scenario_id == 'multistep' %}
+      <label>第 1 步诱导文案
+        <input type="text" name="decoy_step1" maxlength="60" value="{{ preview.decoy_step_labels[0] }}">
+      </label>
+      <label>第 2 步诱导文案
+        <input type="text" name="decoy_step2" maxlength="60" value="{{ preview.decoy_step_labels[1] }}">
+      </label>
+    {% endif %}
+    <label>转账金额（分）
+      <input type="number" name="amount_cents" min="1" max="50000" value="{{ preview.victim_query.amount_cents }}">
+    </label>
+    <label class="checkbox-row">
+      <input type="checkbox" name="debug" value="1"> 调试模式（显示 iframe 边界）
+    </label>
+    <button class="attacker-button primary" type="submit">启动场景</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>本场景允许的目标路径</h2>
+  <table class="lab-table">
+    <thead><tr><th>路径</th><th>说明</th></tr></thead>
+    <tbody>
+      {% for path in scenario.victim_paths %}
+        <tr><td><code class="inline">{{ path }}</code></td>
+        <td>{% if path == '/lab/quick-transfer' %}本地快捷转账确认页{% elif path == '/lab/quick-grant' %}本地快捷授权确认页{% elif path == '/dashboard' %}登录后总览页{% else %}登录页{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

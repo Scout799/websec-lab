@@ -1,0 +1,15 @@
+{% extends "victim/base.html" %}
+{% block title %}清理活动数据{% endblock %}
+{% block content %}
+  <section class="form-card danger-zone">
+    <p class="eyebrow">Destructive Lab Action</p><h1>清理实验活动数据</h1>
+    <p>该操作删除当前测试账户关联的模拟交易、授权和旧审计记录，但保留账户本身和余额。</p>
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}
+      <label>{{ form.confirmation.label }}{{ form.confirmation(autocomplete="off") }}</label>
+      {% with field=form.confirmation %}{% include "victim/_form_errors.html" %}{% endwith %}
+      {{ form.submit(class_="button button-danger") }}
+    </form>
+  </section>
+{% endblock %}
+

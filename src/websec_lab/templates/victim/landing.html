@@ -1,0 +1,18 @@
+{% extends "victim/base.html" %}
+{% block title %}本地实验银行{% endblock %}
+{% block content %}
+  <section class="hero">
+    <p class="eyebrow">Local Security Target</p>
+    <h1>可验证状态变化的点击劫持靶场</h1>
+    <p>
+      该站点模拟登录、资料修改、转账和第三方授权，所有业务仅服务于本地安全实验。
+      操作结果会被记录，供后续自动化审计器判断攻击是否真正成功。
+    </p>
+    <a class="button" href="{{ url_for('victim.login') }}">登录测试账户</a>
+  </section>
+  <section class="notice-card">
+    <strong>实验边界</strong>
+    <p>禁止连接真实支付系统、真实账号或未授权站点。</p>
+  </section>
+{% endblock %}
+

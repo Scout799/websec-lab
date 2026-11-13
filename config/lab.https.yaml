@@ -1,0 +1,36 @@
+project:
+  name: WebSec HTTPS Clickjacking Lab
+  environment: https-lab
+  local_only: true
+trusted_proxy: true
+
+# Native backends bind only to loopback. Nginx terminates HTTPS on 8443.
+services:
+  victim:
+    display_name: Victim Application
+    host: 127.0.0.1
+    port: 15100
+    public_origin: https://victim.test:8443
+    purpose: HTTPS target with a host-only session cookie.
+  attacker:
+    display_name: Attacker Application
+    host: 127.0.0.1
+    port: 15200
+    public_origin: https://attacker.test:8443
+    purpose: Cross-site attacker; same.victim.test is its same-site alias.
+  partner:
+    display_name: Partner Application
+    host: 127.0.0.1
+    port: 15300
+    public_origin: https://partner.test:8443
+    purpose: Authorized cross-site component integration.
+  auditor:
+    display_name: Auditor Service
+    host: 127.0.0.1
+    port: 15400
+    public_origin: https://audit.test:8443
+    purpose: HTTPS audit entry and loopback-only lifecycle controller.
+storage:
+  database_path: .websec-local/https.sqlite3
+  artifact_dir: artifacts/https-lab
+  log_dir: .websec-local/logs

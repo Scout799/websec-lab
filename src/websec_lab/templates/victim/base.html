@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Victim Application{% endblock %} · WebSec Lab</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/victim.css') }}">
+    {% if config['DEFENSE'].frame_busting == 'hide' %}
+    <style>html { display: none; }</style>
+    <script>
+      (function () {
+        if (window.top === window.self) {
+          document.documentElement.style.display = "block";
+        }
+      })();
+    </script>
+    {% elif config['DEFENSE'].frame_busting == 'navigate' %}
+    <script>
+      (function () {
+        if (window.top !== window.self) {
+          try { window.top.location = window.self.location; } catch (error) { /* keep silent */ }
+        }
+      })();
+    </script>
+    {% endif %}
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="{{ url_for('victim.index') }}">
+        <span class="brand-mark"></span>
+        <span class="brand-text">银行<small>WebSec 实验环境</small></span>
+      </a>
+      {% if current_user.is_authenticated %}
+        <nav aria-label="主导航">
+          <a href="{{ url_for('victim.dashboard') }}">总览</a>
+          <a href="{{ url_for('victim.transfer') }}">转账</a>
+          <a href="{{ url_for('victim.transfer_history') }}">交易记录</a>
+          <a href="{{ url_for('victim.authorizations') }}">应用授权</a>
+          <a href="{{ url_for('victim.profile') }}">资料</a>
+        </nav>
+        <form action="{{ url_for('victim.logout') }}" method="post" class="inline-form">
+          {{ logout_form.hidden_tag() }}
+          {{ logout_form.submit(class_="button button-ghost") }}
+        </form>
+      {% else %}
+        <nav aria-label="主导航" class="nav-plain">
+          <a href="{{ url_for('victim.login') }}">登录</a>
+        </nav>
+      {% endif %}
+    </header>
+
+    <main class="page-shell">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <section class="flash-stack" aria-label="系统消息">
+            {% for category, message in messages %}
+              <p class="flash flash-{{ category }}">{{ message }}</p>
+            {% endfor %}
+          </section>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+      <span>WebSec Local Lab v{{ app_version }}</span>
+      <span>所有账户与金额均为虚构实验数据</span>
+    </footer>
+  </body>
+</html>
+

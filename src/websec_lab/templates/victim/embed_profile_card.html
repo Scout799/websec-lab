@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>账户概览组件 · 恒信银行</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/victim.css') }}">
+    <style>
+      body {
+        margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+        background: #fbfdfc; font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+      }
+      .embed-card {
+        width: 360px; padding: 22px 24px; border-radius: 14px;
+        background: linear-gradient(135deg, #10254d, #1b3a75); color: #fff;
+        box-shadow: 0 10px 26px rgba(16, 37, 77, 0.25);
+      }
+      .embed-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+      .embed-bank { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+      .embed-bank .mark {
+        width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center;
+        background: linear-gradient(135deg, #e7cd8e, #c9a24b); color: #10254d; font-weight: 800;
+      }
+      .embed-badge { font-size: 11px; color: #cdd9f4; border: 1px solid rgba(205, 217, 244, .4); border-radius: 999px; padding: 2px 9px; }
+      .embed-label { font-size: 12px; color: #cdd9f4; }
+      .embed-amount { font-size: 34px; font-weight: 800; margin: 2px 0 14px; font-variant-numeric: tabular-nums; }
+      .embed-latest {
+        border-top: 1px solid rgba(205, 217, 244, .25); padding-top: 12px; font-size: 13px; color: #dbe4f6;
+        display: flex; justify-content: space-between;
+      }
+      .embed-note { margin-top: 12px; font-size: 11px; color: #9fb2d8; }
+    </style>
+  </head>
+  <body>
+    <main class="embed-card" data-embed="profile-card">
+      <div class="embed-head">
+        <span class="embed-bank"><span class="mark">恒</span>恒信银行</span>
+        <span class="embed-badge">只读组件</span>
+      </div>
+      <p class="embed-label">{{ username }} 的账户余额</p>
+      <p class="embed-amount">{{ balance_display }}</p>
+      {% if latest %}
+      <div class="embed-latest">
+        <span>最近一笔</span>
+        <span>{{ latest_display }} · {{ latest.recipient.username if latest.sender_id == current_user.id else latest.sender.username }}</span>
+      </div>
+      {% else %}
+      <div class="embed-latest"><span>最近一笔</span><span>暂无交易</span></div>
+      {% endif %}
+      <p class="embed-note">本组件由银行提供给授权合作方嵌入，不包含任何操作按钮。</p>
+    </main>
+  </body>
+</html>

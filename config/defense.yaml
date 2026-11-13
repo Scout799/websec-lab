@@ -1,0 +1,292 @@
+# 防御策略矩阵（M5）
+#
+# 通过环境变量 WEBSEC_DEFENSE_PROFILE 或应用工厂的 DEFENSE_PROFILE 配置项
+# 选择激活的 profile，默认使用 default_profile 指定的无防御基线。
+#
+# 字段语义：
+#   headers.xfo                 X-Frame-Options 值（DENY / SAMEORIGIN 或任意原始字符串）
+#   headers.xfo_extra           追加的重复 X-Frame-Options 头（错误配置样本用）
+#   headers.csp_frame_ancestors frame-ancestors 来源："none"、"self" 或来源列表
+#   headers.csp_report_only     true 时使用 Content-Security-Policy-Report-Only
+#   headers.csp_extra_raw       追加的重复 CSP 策略原文（错误配置样本用）
+#   headers.coop                Cross-Origin-Opener-Policy 值
+#   cookie.samesite             会话 Cookie SameSite（Strict / Lax / None）
+#   cookie.secure               会话 Cookie Secure
+#   cookie.httponly             会话 Cookie HttpOnly
+#   business.confirm_mode       none（单页确认）或 reconfirm（详情 + 确认两阶段）
+#   business.one_time_token     服务端一次性确认令牌（POST 单次有效）
+#   business.reauth_ttl_seconds 敏感操作前要求的重新认证窗口（秒，null 表示不启用）
+#   frame_busting               off（关闭）/ navigate（经典 top.location 弹出）/
+#                               hide（默认隐藏 + 同帧检测再显示，更稳的 JS 基线）
+
+default_profile: none
+
+profiles:
+  https-partner-allowlist:
+    description: HTTPS合作方精确白名单与跨站会话兼容性
+    headers:
+      csp_frame_ancestors: ["self", "partner"]
+    cookie: {samesite: None, secure: true, httponly: true}
+  https-samesite-strict:
+    description: HTTPS实验 Strict + Secure，保留iframe加载能力
+    cookie: {samesite: Strict, secure: true, httponly: true}
+  https-samesite-lax:
+    description: HTTPS实验 Lax + Secure，保留iframe加载能力
+    cookie: {samesite: Lax, secure: true, httponly: true}
+  https-samesite-none:
+    description: HTTPS实验 None + Secure，允许跨站认证对照
+    cookie: {samesite: None, secure: true, httponly: true}
+
+  none:
+    description: 无防御基线（M3 攻击复现使用的状态）
+    headers:
+      xfo: null
+      csp_frame_ancestors: null
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  xfo-deny:
+    description: X-Frame-Options DENY，拒绝任何来源嵌入
+    headers:
+      xfo: DENY
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  xfo-sameorigin:
+    description: X-Frame-Options SAMEORIGIN，仅允许同源嵌入
+    headers:
+      xfo: SAMEORIGIN
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  csp-none:
+    description: CSP frame-ancestors 'none'，现代等价于 XFO DENY
+    headers:
+      csp_frame_ancestors: none
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  csp-self:
+    description: CSP frame-ancestors 'self'，仅允许同源嵌入
+    headers:
+      csp_frame_ancestors: self
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  csp-partner-allowlist:
+    description: CSP 合作方白名单，self 与 partner（运行时按 lab.yaml 展开）可嵌入
+    headers:
+      csp_frame_ancestors:
+        - self
+        - partner
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  csp-partner-allowlist-attacker:
+    description: 动态白名单错误样本：白名单把攻击者也放了进去
+    headers:
+      csp_frame_ancestors:
+        - self
+        - partner
+        - http://attacker.test:5200
+        - https://same.victim.test:8443
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  xfo-csp-consistent:
+    description: XFO 与 CSP 一致配置（同为仅同源）
+    headers:
+      xfo: SAMEORIGIN
+      csp_frame_ancestors: self
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  xfo-csp-conflict:
+    description: XFO 与 CSP 冲突配置：XFO 全拒绝，CSP 却只允许攻击者来源
+    headers:
+      xfo: DENY
+      csp_frame_ancestors:
+        - http://attacker.test:5200
+        - https://same.victim.test:8443
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  broken-duplicate-xfo:
+    description: 错误配置样本：重复 X-Frame-Options 头
+    headers:
+      xfo: SAMEORIGIN
+      xfo_extra:
+        - SAMEORIGIN
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  broken-invalid-xfo:
+    description: 错误配置样本：废弃且非法的 X-Frame-Options 值
+    headers:
+      xfo: ALLOW-FROM http://partner.test:5300
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  broken-wide-csp:
+    description: 错误配置样本：宽泛的 frame-ancestors 通配白名单
+    headers:
+      csp_frame_ancestors:
+        - "*"
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  broken-duplicate-csp:
+    description: 错误配置样本：多个 CSP 头（浏览器只执行最严格交集）
+    headers:
+      csp_frame_ancestors: none
+      csp_extra_raw:
+        - "frame-ancestors 'self' http://partner.test:5300"
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  csp-report-only:
+    description: CSP Report-Only 对照：只报告不阻断，攻击仍会发生
+    headers:
+      csp_frame_ancestors: none
+      csp_report_only: true
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+
+  samesite-strict:
+    description: 会话 Cookie SameSite=Strict（跨站 iframe 不携带会话）
+    headers:
+      xfo: null
+      csp_frame_ancestors: null
+    cookie:
+      samesite: Strict
+      secure: false
+      httponly: true
+
+  samesite-none:
+    description: 对照样本：SameSite=None 且未设置 Secure（浏览器将拒绝该 Cookie）
+    headers:
+      xfo: null
+      csp_frame_ancestors: null
+    cookie:
+      samesite: None
+      secure: false
+      httponly: true
+
+  cookie-hardened:
+    description: Cookie 纵深加固：Strict + Secure + HttpOnly（需要 HTTPS 部署）
+    headers:
+      xfo: null
+      csp_frame_ancestors: null
+    cookie:
+      samesite: Strict
+      secure: true
+      httponly: true
+
+  confirm-reconfirm:
+    description: 业务防御：详情 + 确认两阶段交互，单击覆盖攻击失效
+    headers:
+      xfo: null
+      csp_frame_ancestors: null
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+    business:
+      confirm_mode: reconfirm
+
+  confirm-token:
+    description: 业务防御：服务端一次性确认令牌，重放请求失效
+    headers:
+      xfo: null
+      csp_frame_ancestors: null
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+    business:
+      one_time_token: true
+
+  reauth:
+    description: 业务防御：敏感操作前要求重新输入密码
+    headers:
+      xfo: null
+      csp_frame_ancestors: null
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+    business:
+      reauth_ttl_seconds: 300
+
+  business-hardened:
+    description: 业务纵深防御：两阶段确认 + 一次性令牌 + 重新认证
+    headers:
+      xfo: null
+      csp_frame_ancestors: null
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+    business:
+      confirm_mode: reconfirm
+      one_time_token: true
+      reauth_ttl_seconds: 300
+
+  frame-busting:
+    description: 经典 JavaScript frame-busting（top.location 弹出；现代浏览器可能拦截无手势导航）
+    headers:
+      xfo: null
+      csp_frame_ancestors: null
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+    frame_busting: navigate
+
+  frame-busting-hidden:
+    description: 隐藏式 frame-busting（默认 display:none，检测到未被嵌入才显示）
+    headers:
+      xfo: null
+      csp_frame_ancestors: null
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true
+    frame_busting: hide
+
+  coop-same-origin:
+    description: COOP 对照：Cross-Origin-Opener-Policy same-origin（针对窗口型攻击）
+    headers:
+      coop: same-origin
+    cookie:
+      samesite: Lax
+      secure: false
+      httponly: true

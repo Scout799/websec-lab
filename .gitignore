@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# Environments and local configuration
+.venv/
+.env
+*.local.yaml
+
+# Runtime data
+data/*.db
+data/*.sqlite*
+artifacts/*
+!artifacts/.gitkeep
+logs/*
+!logs/.gitkeep
+tmp/
+.websec-local/
+
+# Browser automation
+test-results/
+playwright-report/
+blob-report/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+
+# Build / packaging output (regenerate locally, never push)
+dist/
+*.zip
+deliverables/发布/
+deliverables/video/
+
+# Python build output
+build/
+*.egg-info/
+
+# Course materials kept locally, never published
+/课程材料/
+.chart-data-*/

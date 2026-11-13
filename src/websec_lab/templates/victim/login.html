@@ -1,0 +1,21 @@
+{% extends "victim/base.html" %}
+{% block title %}登录{% endblock %}
+{% block content %}
+  <section class="form-card narrow">
+    <p class="eyebrow">Synthetic Account</p>
+    <h1>登录测试账户</h1>
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}
+      <label>{{ form.username.label }}{{ form.username(autocomplete="username") }}</label>
+      {% with field=form.username %}{% include "victim/_form_errors.html" %}{% endwith %}
+      <label>{{ form.password.label }}{{ form.password(autocomplete="current-password") }}</label>
+      {% with field=form.password %}{% include "victim/_form_errors.html" %}{% endwith %}
+      {{ form.submit(class_="button button-block") }}
+    </form>
+    <details class="credentials">
+      <summary>显示本地测试账号</summary>
+      <code>alice / alice-lab</code>
+    </details>
+  </section>
+{% endblock %}
+

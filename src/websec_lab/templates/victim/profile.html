@@ -1,0 +1,15 @@
+{% extends "victim/base.html" %}
+{% block title %}个人资料{% endblock %}
+{% block content %}
+  <section class="form-card">
+    <p class="eyebrow">Sensitive Action</p><h1>修改账户邮箱</h1>
+    <p class="muted">该操作将在审计日志中记录修改前后的测试邮箱。</p>
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}
+      <label>{{ form.email.label }}{{ form.email(autocomplete="email") }}</label>
+      {% with field=form.email %}{% include "victim/_form_errors.html" %}{% endwith %}
+      {{ form.submit(class_="button") }}
+    </form>
+  </section>
+{% endblock %}
+

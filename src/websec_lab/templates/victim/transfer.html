@@ -1,0 +1,19 @@
+{% extends "victim/base.html" %}
+{% block title %}模拟转账{% endblock %}
+{% block content %}
+  <section class="form-card">
+    <p class="eyebrow">Sensitive Action</p><h1>发起模拟转账</h1>
+    <p class="balance-line">当前余额：<strong>¥ {{ "%.2f"|format(current_user.account.balance_cents / 100) }}</strong></p>
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}
+      <label>{{ form.recipient_username.label }}{{ form.recipient_username(placeholder="bob 或 merchant") }}</label>
+      {% with field=form.recipient_username %}{% include "victim/_form_errors.html" %}{% endwith %}
+      <label>{{ form.amount.label }}{{ form.amount(inputmode="decimal", placeholder="10.00") }}</label>
+      {% with field=form.amount %}{% include "victim/_form_errors.html" %}{% endwith %}
+      <label>{{ form.note.label }}{{ form.note(placeholder="可选，最多 200 字符") }}</label>
+      {% with field=form.note %}{% include "victim/_form_errors.html" %}{% endwith %}
+      {{ form.submit(class_="button") }}
+    </form>
+  </section>
+{% endblock %}
+

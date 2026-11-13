@@ -1,0 +1,19 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>窗口切换实验</title></head>
+<body style="font:20px system-ui;margin:48px;line-height:2">
+<h1>连续点击与窗口切换实验</h1>
+<p>先在目标站登录。分别准备目标窗口和诱导窗口，然后观察第一次按下鼠标后窗口关闭、第二次点击的落点。</p>
+<button id="prepare">1. 准备目标窗口</button>
+<button id="launch">2. 打开诱导窗口</button><p id="status"></p>
+<script>
+let victimWindow;
+document.querySelector('#prepare').onclick = () => {
+  victimWindow = window.open({{ target|tojson }}, 'websec-window-target', 'popup,width=800,height=600');
+};
+window.focusTarget = () => {
+  if (victimWindow && !victimWindow.closed) victimWindow.focus();
+};
+document.querySelector('#launch').onclick = () => {
+  document.querySelector('#status').textContent = '目标窗口句柄状态：' + (victimWindow?.closed ? '已隔离/关闭' : '可用');
+  window.open('/window-decoy', 'websec-window-decoy', 'popup,width=800,height=600');
+};
+</script></body></html>

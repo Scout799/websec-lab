@@ -1,0 +1,48 @@
+<section class="panel">
+  <div class="run-meta">
+    <span class="run-chip">场景 <strong>{{ scenario.seq }} {{ scenario.title }}</strong></span>
+    <span class="run-chip">运行编号 <strong>{{ run.run_id }}</strong></span>
+    <span class="run-chip">目标 <strong><code class="inline">{{ params.victim_url() }}</code></strong></span>
+    <span class="run-chip">透明度 <strong>{{ params.opacity }}</strong></span>
+    {% if scenario.scenario_id != "probe" %}
+      <span class="run-chip">台账指纹 <strong>¥{{ "%.2f"|format(params.victim_query.amount_cents|int / 100) }}</strong></span>
+    {% endif %}
+    {% if params.debug %}<span class="run-chip">调试模式 <strong>开启</strong></span>{% endif %}
+    <span class="run-chip">victim 防御 <strong id="ws-defense-chip">读取中…</strong></span>
+  </div>
+  <div class="ws-defense-warning" id="ws-defense-warning" hidden>
+    <span id="ws-defense-warning-text"></span>
+    <button type="button" class="attacker-button" id="ws-defense-reset">切回无防御</button>
+  </div>
+  <p class="run-technique"><strong>{{ scenario.seq }} 的手法：</strong>{{ scenario.technique }}</p>
+  <p class="run-technique"><strong>关键成分：</strong><code class="inline">{{ scenario.key_component }}</code></p>
+  {% if scenario.scenario_id != "probe" %}
+    <p class="muted">本招在 victim 台账上固定记 ¥{{ "%.2f"|format(params.victim_query.amount_cents|int / 100) }}，
+      点完后到受害者「最近交易」按金额即可认出是哪一招（各招金额互不相同）。</p>
+  {% endif %}
+  {% if params.debug %}
+    <div class="debug-banner">调试模式：iframe 边界以红色虚线显示，透明度自动提升到 0.35，便于观察真实点击落点。</div>
+  {% endif %}
+  <p class="muted" id="run-status">等待目标页面加载…</p>
+</section>
+
+<aside class="ws-verdict" id="ws-verdict" hidden aria-live="polite">
+  <p class="ws-verdict-head">本次点击判定</p>
+  <p class="ws-verdict-type" id="ws-verdict-type"></p>
+  <p class="ws-verdict-meta" id="ws-verdict-meta"></p>
+  <p class="ws-verdict-result" id="ws-verdict-result">尚未点击</p>
+</aside>
+
+<script>
+  window.__WS_VERDICT = {
+    seq: {{ scenario.seq | tojson }},
+    title: {{ scenario.title | tojson }},
+    technique: {{ scenario.technique | tojson }},
+    keyComponent: {{ scenario.key_component | tojson }},
+    ledgerNote: {{ scenario.ledger_note | tojson }},
+    victimBase: {{ params.victim_base | tojson }},
+    runId: {{ run.run_id | tojson }},
+    mutating: {{ (scenario.scenario_id != "probe") | tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/verdict.js') }}"></script>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>敏感操作重新验证 · Victim Lab</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/victim.css') }}">
+    <style>
+      html, body { height: 100%; margin: 0; }
+      body { display: flex; align-items: center; justify-content: center; background: #f4f6f9; }
+      .quick-card {
+        width: 300px; padding: 26px 24px; text-align: center;
+        background: #fff; border: 1px solid #d7dce3; border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(15, 35, 65, 0.08);
+      }
+      .quick-card h1 { font-size: 17px; margin: 0 0 6px; color: #16325c; }
+      .quick-card p { color: #5a6b82; font-size: 13px; margin: 0 0 14px; }
+      .quick-card input[type="password"] {
+        width: 100%; padding: 10px; border: 1px solid #c8d0da; border-radius: 6px;
+        font-size: 14px; margin-bottom: 12px; box-sizing: border-box;
+      }
+      .quick-card .button { width: 100%; padding: 12px 0; font-size: 15px; margin: 0; }
+      .quick-error { color: #b3261e; font-size: 13px; margin: 0 0 12px; }
+    </style>
+  </head>
+  <body>
+    <main class="quick-card" data-quick-page="reauth">
+      <h1>敏感操作重新验证</h1>
+      <p>当前防御策略要求在敏感操作前重新确认身份。</p>
+      {% with messages = get_flashed_messages() %}
+        {% for message in messages %}
+          <p class="quick-error">{{ message }}</p>
+        {% endfor %}
+      {% endwith %}
+      <form method="post" action="{{ url_for('victim_lab.reauth') }}?next={{ next_target | urlencode }}">
+        {{ form.hidden_tag() }}
+        {{ form.password(placeholder="请输入当前密码", autocomplete="current-password") }}
+        {{ form.submit(class_="button button-primary") }}
+      </form>
+    </main>
+  </body>
+</html>

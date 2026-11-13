@@ -1,0 +1,113 @@
+{% extends "attacker/base.html" %}
+{% block title %}光标劫持演示 cursorjacking{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="run-meta">
+    <span class="run-chip">演示 <strong>cursorjacking 光标劫持</strong></span>
+    <span class="run-chip">关键成分 <strong>cursor: none + 假光标 + 固定位移</strong></span>
+    <span class="run-chip">位移 <strong id="offset-label">+180 / +96</strong></span>
+  </div>
+  <p class="run-technique"><strong>这一页在做什么：</strong>隐藏真实光标，用 DOM 画一个跟着鼠标走的假光标，
+    并把它的位置整体偏移。你以为光标在诱饵按钮上，真实指针其实在另一个位置。</p>
+  <p class="muted">操作：把鼠标移到「领取 88 元红包」上（屏幕上那个是<strong>假光标</strong>），点下去。</p>
+  <p class="muted">对比：点「关闭位移」后，假光标回到真实位置，同样点诱饵按钮就只会触发诱饵。</p>
+</section>
+
+<section class="panel">
+  <div class="cursor-stage" id="cursor-stage">
+    <button type="button" class="cursor-decoy" id="cursor-decoy">领取 88 元红包</button>
+    <button type="button" class="cursor-target" id="cursor-target">确认转账 ¥8.88</button>
+  </div>
+  <div class="cursor-controls">
+    <button type="button" class="attacker-button" id="cursor-toggle">关闭位移</button>
+    <span class="muted" id="cursor-hint">位移开启：假光标比真实指针偏 +180 / +96 像素。</span>
+  </div>
+  <div class="cursor-log" id="cursor-log">等待点击…</div>
+</section>
+
+<script>
+  (function () {
+    "use strict";
+    const DX = 180;
+    const DY = 96;
+    const decoy = document.getElementById("cursor-decoy");
+    const target = document.getElementById("cursor-target");
+    const stage = document.getElementById("cursor-stage");
+    const log = document.getElementById("cursor-log");
+    const hint = document.getElementById("cursor-hint");
+    const toggle = document.getElementById("cursor-toggle");
+    const offsetLabel = document.getElementById("offset-label");
+    let offsetOn = true;
+
+    const cursor = document.createElement("div");
+    cursor.className = "fake-cursor";
+    cursor.style.display = "none";
+    document.body.appendChild(cursor);
+
+    function placeTarget() {
+      const decoyRect = decoy.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      let deltaX = decoyRect.left + decoyRect.width / 2 - DX - (targetRect.left + targetRect.width / 2);
+      let deltaY = decoyRect.top + decoyRect.height / 2 - DY - (targetRect.top + targetRect.height / 2);
+      const stageRect = stage.getBoundingClientRect();
+      const minX = stageRect.left + 12 - targetRect.left;
+      const minY = stageRect.top + 12 - targetRect.top;
+      const maxX = stageRect.right - 12 - targetRect.right;
+      const maxY = stageRect.bottom - 12 - targetRect.bottom;
+      deltaX = Math.max(minX, Math.min(deltaX, maxX));
+      deltaY = Math.max(minY, Math.min(deltaY, maxY));
+      target.style.transform = "translate(" + deltaX + "px, " + deltaY + "px)";
+    }
+
+    function describe(element) {
+      const rect = element.getBoundingClientRect();
+      return (
+        "<" + element.tagName.toLowerCase() + "#" + element.id + "> 「" +
+        element.textContent.trim() + "」 中心 (" +
+        Math.round(rect.left + rect.width / 2) + ", " +
+        Math.round(rect.top + rect.height / 2) + ")"
+      );
+    }
+
+    decoy.addEventListener("click", function () {
+      log.className = "cursor-log warn";
+      log.innerHTML = "诱饵被命中：" + describe(decoy) + " —— 这一次真正点到了诱饵，攻击没有发生。";
+    });
+
+    target.addEventListener("click", function () {
+      log.className = "cursor-log hit";
+      log.innerHTML =
+        "劫持成功：你以为点的是「领取 88 元红包」，实际命中的是 " + describe(target) +
+        "。<br>证据：真实指针坐标与假光标相差 " + (offsetOn ? "+" + DX + " / +" + DY : "0 / 0") + " 像素。";
+    });
+
+    document.addEventListener("mousemove", function (event) {
+      cursor.style.display = "block";
+      const x = event.clientX + (offsetOn ? DX : 0);
+      const y = event.clientY + (offsetOn ? DY : 0);
+      cursor.style.transform = "translate(" + x + "px, " + y + "px)";
+    });
+
+    toggle.addEventListener("click", function () {
+      offsetOn = !offsetOn;
+      toggle.textContent = offsetOn ? "关闭位移" : "开启位移";
+      offsetLabel.textContent = offsetOn ? "+180 / +96" : "0 / 0";
+      hint.textContent = offsetOn
+        ? "位移开启：假光标比真实指针偏 +180 / +96 像素。"
+        : "位移关闭：假光标与真实指针重合，点诱饵只会触发诱饵。";
+      log.className = "cursor-log";
+      log.textContent = "已切换为" + (offsetOn ? "位移开启" : "位移关闭") + "，再点一次试试。";
+    });
+
+    function refresh() {
+      placeTarget();
+    }
+    window.addEventListener("load", refresh);
+    window.addEventListener("resize", refresh);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(refresh);
+    }
+    refresh();
+  })();
+</script>
+{% endblock %}

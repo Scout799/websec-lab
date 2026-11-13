@@ -1,0 +1,18 @@
+{% extends "victim/base.html" %}
+{% block title %}交易记录{% endblock %}
+{% block content %}
+  <section class="page-heading"><div><p class="eyebrow">Audit-ready State</p><h1>模拟交易记录</h1></div><a class="button" href="{{ url_for('victim.transfer') }}">新建转账</a></section>
+  <section class="table-card">
+    {% if transfers %}
+      <table><thead><tr><th>ID</th><th>时间</th><th>方向</th><th>对方</th><th>金额</th><th>备注</th><th>状态</th></tr></thead><tbody>
+        {% for item in transfers %}<tr>
+          <td>#{{ item.id }}</td><td>{{ item.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+          {% if item.sender_id == current_user.id %}<td>转出</td><td>{{ item.recipient.username }}</td><td class="negative">- ¥ {{ "%.2f"|format(item.amount_cents / 100) }}</td>
+          {% else %}<td>转入</td><td>{{ item.sender.username }}</td><td class="positive">+ ¥ {{ "%.2f"|format(item.amount_cents / 100) }}</td>{% endif %}
+          <td>{{ item.note or "—" }}</td><td>{{ item.status }}</td>
+        </tr>{% endfor %}
+      </tbody></table>
+    {% else %}<p class="empty">暂无交易记录。</p>{% endif %}
+  </section>
+{% endblock %}
+

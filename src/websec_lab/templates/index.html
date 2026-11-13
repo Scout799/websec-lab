@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ service.display_name }} · {{ project_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  </head>
+  <body>
+    <main class="shell">
+      <p class="eyebrow">{{ project_name }}</p>
+      <h1>{{ service.display_name }}</h1>
+      <p class="purpose">{{ service.purpose }}</p>
+      <dl>
+        <div><dt>Service</dt><dd><code>{{ service.name }}</code></dd></div>
+        <div><dt>Environment</dt><dd><code>{{ environment }}</code></dd></div>
+        <div><dt>Version</dt><dd><code>{{ version }}</code></dd></div>
+      </dl>
+      <p class="status">基础服务已就绪，业务模块将在后续里程碑接入。</p>
+      <nav>
+        <a href="/healthz">Health</a>
+        <a href="/readyz">Readiness</a>
+        {% if service.name == "auditor" %}<a href="/audit">审计控制台</a>{% endif %}
+      </nav>
+    </main>
+  </body>
+</html>
+

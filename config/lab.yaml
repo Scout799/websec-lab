@@ -1,0 +1,42 @@
+project:
+  name: WebSec Clickjacking Lab
+  environment: development
+  local_only: true
+
+services:
+  victim:
+    display_name: Victim Application
+    host: 127.0.0.1
+    port: 5100
+    public_origin: http://127.0.0.1:5100
+    purpose: Target application containing simulated sensitive actions.
+
+  attacker:
+    display_name: Attacker Application
+    host: 127.0.0.1
+    port: 5200
+    public_origin: http://127.0.0.1:5200
+    purpose: Local-only host for controlled clickjacking scenarios.
+
+  partner:
+    display_name: Partner Application
+    host: 127.0.0.1
+    port: 5300
+    public_origin: http://127.0.0.1:5300
+    purpose: Authorized embedding origin used for compatibility tests.
+
+  auditor:
+    display_name: Auditor Service
+    host: 127.0.0.1
+    port: 5400
+    public_origin: http://127.0.0.1:5400
+    purpose: Static policy analysis and browser-based verification service.
+
+storage:
+  database_path: data/websec_lab.sqlite3
+  artifact_dir: artifacts
+  log_dir: logs
+
+# NOTE: 默认 origin 使用本机回环地址，保证原生开发模式下开箱即用。
+# 多域 HTTPS 使用 lab.https.yaml 与 https_lab 入口；域名映射限定于独立
+# 实验浏览器，不修改系统 hosts。

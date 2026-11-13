@@ -1,0 +1,40 @@
+{% extends "attacker/base.html" %}
+{% block title %}分屏演示{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>分屏演示模式</h1>
+  <p class="muted">
+    把“看不见的攻击”变成看得见的故事：左侧是受害者看到的诱导页面，右侧实时显示
+    victim 服务器上受害者账户的真实状态。每一次诱导点击之后发生了什么，由时间线
+    解说自动给出，不需要在两个标签页之间来回切换和脑补。
+  </p>
+  <div class="scenario-actions">
+    <a class="attacker-button primary" href="{{ url_for('demo.classic') }}">开始经典演示（透明覆盖）</a>
+    <a class="attacker-button" href="{{ url_for('demo.cursor_demo') }}">光标劫持演示（cursorjacking）</a>
+  </div>
+  <p class="muted">
+    另有一个不进七类场景的补充演示：<strong>光标劫持（cursorjacking）</strong>——
+    隐藏真实光标、用假光标制造位移，让你点在诱饵上、实际点到另一个按钮。
+    它不需要 iframe，所以 XFO / CSP 这类框架控制对它无效。
+  </p>
+</section>
+
+<section class="panel">
+  <h2>演示前三步准备</h2>
+  <ol class="muted" style="margin: 8px 0 0; padding-left: 20px; line-height: 2;">
+    <li>点演示页右上角「本页登录 victim（alice）」，用 <code class="inline">alice / alice-lab</code> 登录后会自动跳回演示页；</li>
+    <li>回到本页点击“开始经典演示”；</li>
+    <li>在左侧点“立即领取试用装”，然后什么都不用做——看右侧。</li>
+  </ol>
+</section>
+
+<section class="panel">
+  <h2>看什么</h2>
+  <p class="muted">
+    点击瞬间，右侧会出现四条时间线：点击落入透明 iframe → victim 表单被提交 →
+    交易记录新增 → 余额下降。攻击成功的判定不靠肉眼，而靠 victim 状态 API 的前后
+    对比，与自动化审计（M7）使用同一证据源。右上角“透视”开关可以把透明 iframe
+    显示出来，向观众展示按钮下方的真实页面。
+  </p>
+</section>
+{% endblock %}

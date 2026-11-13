@@ -1,0 +1,114 @@
+{% extends "attacker/base.html" %}
+{% block title %}{{ scenario.seq }} {{ scenario.title }}{% endblock %}
+{% block content %}
+{% include "attacker/run/_run_header.html" %}
+
+<div class="probe-layout">
+  <section class="panel">
+    <h2>嵌入信号采集</h2>
+    <p class="muted">
+      探针以可见方式加载目标页面，采集浏览器侧信号判断目标当前是否允许被第三方 iframe 嵌入。
+      该场景不执行任何点击，只做只读检测。
+    </p>
+    <ul class="signal-list">
+      <li><span>load 事件</span><span id="signal-onload">等待中…</span></li>
+      <li><span>contentDocument 访问结果</span><span id="signal-doc">等待中…</span></li>
+      <li><span>判定依据</span><span id="signal-reason">—</span></li>
+    </ul>
+    <p class="verdict unknown" id="probe-verdict">判定中…</p>
+  </section>
+  <section class="probe-frame-wrap">
+    <iframe id="victim-frame" title="probe target" src="{{ params.victim_url() }}"></iframe>
+  </section>
+</div>
+
+<script>
+  const RUN_ID = {{ run.run_id | tojson }};
+  const REPORT_TOKEN = {{ report_token | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/attack-report.js') }}"></script>
+<script>
+  (function () {
+    "use strict";
+    const frame = document.getElementById("victim-frame");
+    const onloadSignal = document.getElementById("signal-onload");
+    const docSignal = document.getElementById("signal-doc");
+    const reasonSignal = document.getElementById("signal-reason");
+    const verdict = document.getElementById("probe-verdict");
+    const statusLine = document.getElementById("run-status");
+
+    const signals = { onload: false };
+    let evaluated = false;
+
+    function render(framing, reason) {
+      onloadSignal.textContent = signals.onload ? "已触发" : "未触发";
+      docSignal.textContent = signals.contentDocument;
+      reasonSignal.textContent = reason;
+      if (framing === "allowed") {
+        verdict.textContent = "判定：目标当前允许被嵌入（存在点击劫持风险）";
+        verdict.className = "verdict allowed";
+      } else if (framing === "blocked") {
+        verdict.textContent = "判定：目标拒绝了嵌入（存在 XFO / CSP frame-ancestors 或同类限制）";
+        verdict.className = "verdict blocked";
+      } else {
+        verdict.textContent =
+          "页内信号不足：Chromium 下跨域加载与被阻断均返回 null，需结合控制台 Refused 消息或 M7 审计器判定";
+        verdict.className = "verdict unknown";
+      }
+      statusLine.textContent = "探针检测结束，原始信号已回传本地结果接收 API。";
+    }
+
+    function evaluate(reason) {
+      if (evaluated) {
+        return;
+      }
+      let accessible;
+      try {
+        const doc = frame.contentDocument;
+        if (doc === null) {
+          accessible = "null";
+        } else {
+          accessible = doc.body && doc.body.childElementCount > 0 ? "same-origin-content" : "same-origin-empty";
+        }
+      } catch (error) {
+        accessible = "cross-origin";
+      }
+      signals.contentDocument = accessible;
+
+      // contentDocument semantics differ per engine: Firefox throws for
+      // cross-origin frames, while Chromium returns null for BOTH cross-origin
+      // content and XFO/CSP-blocked frames. "null" is therefore inconclusive
+      // in Chromium and the final verdict must combine the driver-side console
+      // signal ("Refused to display ..."), which the M7 auditor will capture.
+      let framing = "unknown";
+      if (accessible === "same-origin-empty") {
+        framing = "blocked";
+      } else if (accessible === "cross-origin" && signals.onload) {
+        framing = "allowed";
+      }
+
+      evaluated = true;
+      AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, {
+        type: "probe_result",
+        framing: framing,
+        reason: reason,
+        onload: signals.onload,
+        content_document: accessible
+      });
+      render(framing, reason);
+    }
+
+    frame.addEventListener("load", function () {
+      signals.onload = true;
+      evaluate("load event");
+    });
+    window.addEventListener("DOMContentLoaded", function () {
+      AttackReport.reportEvent(RUN_ID, REPORT_TOKEN, { type: "page_ready" });
+      statusLine.textContent = "探针页面就绪，正在采集目标嵌入信号…";
+    });
+    setTimeout(function () {
+      evaluate("timeout");
+    }, 6000);
+  })();
+</script>
+{% endblock %}

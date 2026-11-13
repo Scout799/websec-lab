@@ -1,0 +1,64 @@
+{% extends "attacker/base.html" %}
+{% block title %}场景列表{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>点击劫持场景库</h1>
+  <p class="muted">
+    本服务承载多种攻击场景页面，用于在本地靶场上复现点击劫持的完整攻击链。
+    每次运行都会分配独立的运行编号，浏览器侧事件通过本地结果接收 API 回传存档。
+  </p>
+  <p><a class="attacker-button" href="{{ url_for('window_lab.window_lab') }}">打开双窗口连续点击实验</a></p>
+  <p><a class="attacker-button" href="{{ url_for('demo.cursor_demo') }}">光标劫持演示（cursorjacking，不属于 S1–S7）</a></p>
+  <div class="scenario-grid">
+    {% for scenario in scenarios %}
+      <article class="scenario-card">
+        <span class="scenario-seq">{{ scenario.seq }}</span>
+        <h2>{{ scenario.title }}</h2>
+        <p>{{ scenario.summary }}</p>
+        <p class="scenario-fingerprint">
+          {{ scenario.technique }}
+          {% if scenario.scenario_id != "probe" %}
+            · 台账指纹 <strong>¥{{ "%.2f"|format(scenario.fingerprint_amount_cents / 100) }}</strong>
+          {% endif %}
+        </p>
+        <div class="scenario-actions">
+          <a class="attacker-button" href="{{ url_for('attacker.scenario_detail', scenario_id=scenario.scenario_id) }}">参数说明</a>
+          <a class="attacker-button primary" href="{{ url_for('attacker.scenario_run', scenario_id=scenario.scenario_id) }}">默认参数运行</a>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel" id="runs">
+  <h2>最近运行记录</h2>
+  {% if recent_runs %}
+    <table class="lab-table">
+      <thead>
+        <tr>
+          <th>运行编号</th>
+          <th>场景</th>
+          <th>目标路径</th>
+          <th>事件数</th>
+          <th>创建时间</th>
+          <th>详情</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in recent_runs %}
+          <tr>
+            <td><code class="inline">{{ run.run_id }}</code></td>
+            <td>{{ run.scenario }}</td>
+            <td><code class="inline">{{ run.params.victim_path }}</code></td>
+            <td>{{ run.events }}</td>
+            <td>{{ run.created_at }}</td>
+            <td><a href="{{ url_for('attacker.run_detail', run_id=run.run_id) }}">JSON</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">还没有运行记录。选择一个场景开始第一次攻击复现。</p>
+  {% endif %}
+</section>
+{% endblock %}

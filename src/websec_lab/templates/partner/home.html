@@ -1,0 +1,31 @@
+{% extends "partner/base.html" %}
+{% block title %}首页{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">合法嵌入场景（M4）</p>
+  <h1>惠生活服务</h1>
+  <p>
+    我们是恒信银行的授权合作方。用户在惠生活绑定银行账户后，可以在本站直接查看
+    银行提供的账户概览组件——这依赖银行侧配置正确的
+    <code>CSP frame-ancestors</code> 白名单：既允许我们嵌入，又拒绝攻击者嵌入。
+  </p>
+  <div class="actions">
+    <a class="button" href="{{ url_for('wallet') }}">打开我的钱包</a>
+  </div>
+</section>
+
+<section class="cards">
+  <div class="card">
+    <h2>合法嵌入的判定</h2>
+    <p>打开“我的钱包”时，本站通过 iframe 加载银行组件。若银行当前防御策略的白名单包含本站来源，组件正常显示。</p>
+  </div>
+  <div class="card">
+    <h2>攻击者被拒绝</h2>
+    <p>同一份白名单对攻击者来源返回拒绝。合法与非法嵌入的差异可在审计报告中同时验证。</p>
+  </div>
+  <div class="card">
+    <h2>多级嵌套的影响</h2>
+    <p>若攻击者把本站钱包页再嵌进自己的页面，银行组件会因祖先链包含未授权来源而被拒绝——frame-ancestors 校验整条祖先链。</p>
+  </div>
+</section>
+{% endblock %}

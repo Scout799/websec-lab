@@ -1,0 +1,10 @@
+Single-database migration repository for the local victim application.
+
+Apply migrations with:
+
+    websec-lab db upgrade
+
+Reset the local synthetic database with:
+
+    websec-lab db reset --yes
+
